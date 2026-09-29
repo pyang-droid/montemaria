@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import LoginModal from "./LoginModal";
+import SignUpModal from "./SignUpModal";
 
 const navLinks = [
   { label: "Home", href: "#home" },
@@ -14,173 +15,164 @@ const navLinks = [
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [active, setActive] = useState("Home");
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [signUpOpen, setSignUpOpen] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 40);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const handleNav = (label: string, href: string) => {
-    setActive(label);
+  const goTo = (href: string) => {
     setMobileOpen(false);
-    const el = document.querySelector(href);
-    if (el) el.scrollIntoView({ behavior: "smooth" });
+    document.querySelector(href)?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const openLogin = () => {
+    setSignUpOpen(false);
+    setMobileOpen(false);
+    setLoginOpen(true);
+  };
+
+  const openSignUp = () => {
+    setLoginOpen(false);
+    setMobileOpen(false);
+    setSignUpOpen(true);
   };
 
   return (
     <>
       <nav
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+        className={`fixed inset-x-0 top-0 z-50 border-b transition-all duration-500 ${
           scrolled
-            ? "bg-white shadow-lg shadow-red-900/10 py-3"
-            : "bg-transparent py-5"
+            ? "border-black/[0.06] bg-white/80 shadow-[0_1px_12px_rgba(0,0,0,0.04)] backdrop-blur-2xl"
+            : "border-white/10 bg-black/5 backdrop-blur-md"
         }`}
       >
-        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          {/* Logo */}
+        <div className="mx-auto flex h-[72px] max-w-[1200px] items-center justify-between px-5 md:px-8">
           <button
-            onClick={() => handleNav("Home", "#home")}
-            className="flex items-center gap-3 group"
+            type="button"
+            onClick={() => goTo("#home")}
+            className="flex items-center"
+            aria-label="Go to homepage"
           >
-            {/* Cross Icon */}
-            <div className="relative w-8 h-8 flex items-center justify-center">
-              <div
-                className={`bg-black absolute w-1 h-8 rounded-full transition-colors ${
-                  scrolled ? "bg-brand-red" : "bg-white"
-                }`}
-              />
-              <div
-                className={`bg-black absolute w-7 h-1 rounded-full transition-colors ${
-                  scrolled ? "bg-brand-red" : "bg-white"
-                }`}
-              />
-            </div>
-            <span
-              className={`text-gray-700 font-serif text-xl font-bold tracking-wide transition-colors ${
-                scrolled ? "text-brand-red" : "text-white"
-              }`}
-              style={{ fontFamily: "'Playfair Display', serif" }}
-            >
-              Monte Maria
-            </span>
+            <img
+              src="/montemarialogo.png"
+              alt="Montemaria Batangas"
+              className="h-14 w-14 object-contain"
+            />
           </button>
 
-          {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 lg:flex">
             {navLinks.map((link) => (
               <button
                 key={link.label}
-                onClick={() => handleNav(link.label, link.href)}
-                className={`text-gray-700 nav-link text-sm tracking-widest uppercase font-body font-medium transition-colors ${
+                type="button"
+                onClick={() => goTo(link.href)}
+                className={`text-[12px] font-medium transition-colors ${
                   scrolled
-                    ? active === link.label
-                      ? "text-brand-red"
-                      : "text-gray-700 hover:text-black"
-                    : active === link.label
-                    ? "text-white"
+                    ? "text-[#424245] hover:text-black"
                     : "text-white/80 hover:text-white"
-                } ${active === link.label ? "active" : ""}`}
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                }`}
               >
                 {link.label}
               </button>
             ))}
           </div>
 
-          {/* Auth Buttons */}
-          <div className="hidden md:flex items-center gap-3">
-            <Link
-              href="/login"
-              className={`px-5 py-2 text-sm font-medium rounded-full border transition-all duration-300 ${
-                scrolled
-                  ? "border-gray-700 text-gray-700 hover:bg-black hover:text-white"
-                  : "border-white text-white hover:bg-white hover:text-black"
+          <div className="hidden items-center gap-2 md:flex">
+            <button
+              type="button"
+              onClick={openLogin}
+              className={`rounded-full px-4 py-2 text-xs font-medium transition ${
+                scrolled ? "text-[#1d1d1f] hover:bg-black/5" : "text-white hover:bg-white/10"
               }`}
-              style={{ fontFamily: "'Lato', sans-serif" }}
             >
-              Login
-            </Link>
-            <Link
-              href="/signup"
-               className={`px-5 py-2 text-sm font-medium rounded-full border transition-all duration-300 ${
+              Log in
+            </button>
+            <button
+              type="button"
+              onClick={openSignUp}
+              className={`rounded-full px-5 py-2 text-xs font-semibold transition ${
                 scrolled
-                  ? "border-gray-700 text-gray-700 hover:bg-black hover:text-white"
-                  : "border-white text-white hover:bg-white hover:text-black"
+                  ? "bg-[#1d1d1f] text-white hover:bg-black"
+                  : "bg-white text-[#1d1d1f] hover:bg-white/90"
               }`}
-              style={{ fontFamily: "'Lato', sans-serif" }}
             >
-              Sign Up
-            </Link>
+              Sign up
+            </button>
           </div>
 
-          {/* Mobile Menu Button */}
           <button
-            className="md:hidden flex flex-col gap-1.5 p-2"
-            onClick={() => setMobileOpen(!mobileOpen)}
+            type="button"
+            className="relative h-10 w-10 md:hidden"
+            onClick={() => setMobileOpen((v) => !v)}
+            aria-label="Toggle menu"
           >
             <span
-              className={`block w-6 h-0.5 transition-all duration-300 ${
-                mobileOpen ? "rotate-45 translate-y-2" : ""
-              } ${scrolled ? "bg-gray-700" : "bg-white"}`}
+              className={`absolute left-2 top-[15px] h-[1.5px] w-6 transition-all ${
+                mobileOpen
+                  ? "translate-y-[4px] rotate-45 bg-black"
+                  : scrolled
+                    ? "bg-black"
+                    : "bg-white"
+              }`}
             />
             <span
-              className={`block w-6 h-0.5 transition-all duration-300 ${
-                mobileOpen ? "opacity-0" : ""
-              } ${scrolled ? "bg-gray-700" : "bg-white"}`}
-            />
-            <span
-              className={`block w-6 h-0.5 transition-all duration-300 ${
-                mobileOpen ? "-rotate-45 -translate-y-2" : ""
-              } ${scrolled ? "bg-gray-700" : "bg-white"}`}
+              className={`absolute bottom-[15px] left-2 h-[1.5px] w-6 transition-all ${
+                mobileOpen
+                  ? "-translate-y-[4px] -rotate-45 bg-black"
+                  : scrolled
+                    ? "bg-black"
+                    : "bg-white"
+              }`}
             />
           </button>
         </div>
       </nav>
 
-      {/* Mobile Menu */}
-       <div
-        className={`fixed inset-0 z-40 bg-white transition-all duration-500 ${
-          mobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+      <div
+        className={`fixed inset-0 z-40 bg-[#f5f5f7] transition-all duration-500 md:hidden ${
+          mobileOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
       >
-        <div className="h-full flex flex-col justify-center items-center px-6">
-          <div className="flex flex-col gap-6 w-full max-w-xs">
-            {navLinks.map((link) => (
-              <button
-                key={link.label}
-                onClick={() => handleNav(link.label, link.href)}
-                className={`text-2xl font-serif text-black text-left py-3 border-b-2 transition-all ${
-                  active === link.label
-                    ? "border-brand-red text-brand-red"
-                    : "border-transparent hover:border-gray-300"
-                }`}
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                {link.label}
-              </button>
-            ))}
-            
-            <div className="flex flex-col gap-3 mt-6">
-              <Link
-                href="/login"
-                className="w-full py-3 border border-black text-black rounded-full text-sm font-medium hover:bg-black hover:text-white transition-all"
-              >
-                Login
-              </Link>
-              <Link
-                href="/signup"
-                className="w-full py-3 border border-black text-black rounded-full text-sm font-medium hover:bg-black hover:text-white transition-all"
-              >
-                Sign Up
-              </Link>
-            </div>
+        <div className="mx-auto flex h-full max-w-md flex-col justify-center px-8 pt-16">
+          <p className="mb-7 text-xs font-semibold uppercase tracking-[0.18em] text-[#86868b]">
+            Explore Monte Maria
+          </p>
+          {navLinks.map((link) => (
+            <button
+              key={link.label}
+              type="button"
+              onClick={() => goTo(link.href)}
+              className="border-b border-black/[0.08] py-4 text-left text-3xl font-semibold tracking-[-0.03em] text-[#1d1d1f]"
+            >
+              {link.label}
+            </button>
+          ))}
+          <div className="mt-9 grid grid-cols-2 gap-3">
+            <button onClick={openLogin} className="rounded-full border border-black/20 py-3 text-sm">
+              Log in
+            </button>
+            <button onClick={openSignUp} className="rounded-full bg-[#1d1d1f] py-3 text-sm text-white">
+              Sign up
+            </button>
           </div>
         </div>
       </div>
+
+      <LoginModal
+        isOpen={loginOpen}
+        onClose={() => setLoginOpen(false)}
+        onOpenSignUp={openSignUp}
+      />
+      <SignUpModal
+        isOpen={signUpOpen}
+        onClose={() => setSignUpOpen(false)}
+        onOpenLogin={openLogin}
+      />
     </>
   );
 }

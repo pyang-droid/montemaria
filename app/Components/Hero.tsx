@@ -1,107 +1,98 @@
 "use client";
 
 export default function Hero() {
-  const scrollToAbout = () => {
-    document.querySelector("#about")?.scrollIntoView({ behavior: "smooth" });
+  const scrollTo = (selector: string) => {
+    document.querySelector(selector)?.scrollIntoView({
+      behavior: "smooth",
+    });
   };
 
   return (
-    <section
-      id="home"
-      className="relative w-full h-screen min-h-[600px] flex items-center justify-center overflow-hidden"
-    >
-      {/* Background Image with Ken Burns */}
-      <div className="absolute inset-0 z-0">
+    <section id="home" className="bg-[#f5f5f7]">
+      <div className="relative h-[100svh] min-h-[760px] overflow-hidden bg-black">
+
+        {/* ================= BACKGROUND IMAGE ================= */}
         <img
-          src="montemariabaddie.png"
-          alt="Monte Maria"
-          className="w-full h-full object-cover animate-ken-burns"
+          src="/montemariabaddie.png"
+          alt="Montemaria"
+          className="absolute inset-0 h-full w-full scale-[1.02] object-cover object-center"
         />
-        {/* Gradient overlays */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
-        <div className="absolute inset-0 bg-brand-red/10" />
-      </div>
 
-      {/* Decorative cross watermark */}
-      <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none">
-        <div className="opacity-5">
-          <div className="relative w-96 h-96 flex items-center justify-center">
-            <div className="absolute w-4 h-full bg-white rounded-full" />
-            <div className="absolute w-full h-4 bg-white rounded-full" />
-          </div>
-        </div>
-      </div>
+        {/* ================= OVERLAYS ================= */}
+        <div className="absolute inset-0 bg-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/5 to-black/55" />
 
-      {/* Content */}
-      <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
-        {/* Eyebrow */}
-        <div className="cross-divider text-white/60 mb-6 max-w-xs mx-auto">
-          <span
-            className="text-xs tracking-[0.3em] uppercase text-white/70"
-            style={{ fontFamily: "'Lato', sans-serif" }}
+        {/* ================= LOCATION ================= */}
+        <div className="absolute left-1/2 top-[17%] z-20 -translate-x-1/2">
+          <p
+            className="whitespace-nowrap text-sm font-semibold tracking-[0.02em] text-white drop-shadow-lg md:text-base"
+            style={{
+              fontFamily:
+                "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            }}
           >
-            Pagkilatan, Batangas City
-          </span>
+            Pagkilatan • Batangas City • Philippines
+          </p>
         </div>
 
-        {/* Title */}
-        <h1
-          className="text-6xl md:text-8xl font-bold text-white mb-4 leading-none tracking-tight animate-fade-in"
-          style={{ fontFamily: "'Playfair Display', serif" }}
-        >
-          Monte Maria
+        {/* ================= MONTEMARIA TITLE ================= */}
+        <div className="absolute left-1/2 top-[31%] z-10 w-full -translate-x-1/2 text-center">
+          <h1
+            className="px-6 text-[clamp(5rem,11vw,10rem)] font-semibold leading-[0.86] tracking-[-0.045em] text-white drop-shadow-sm"
+            style={{
+              fontFamily: "var(--font-cormorant), Georgia, serif",
+            }}
+          >
+            Montemaria
+          </h1>
+        </div>
+
+        {/* ================= BUTTONS ================= */}
+        {/* Positioned lower based on the area marked in your screenshot */}
+        <div className="absolute bottom-[13%] left-1/2 z-20 flex -translate-x-1/2 flex-wrap items-center justify-center gap-4">
           
-        </h1>
-
-        {/* Subtitle */}
-        <p
-          className="text-white/80 text-lg md:text-xl mt-6 max-w-xl mx-auto leading-relaxed animate-slide-up"
-          style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            animationDelay: "0.4s",
-            opacity: 0,
-            animationFillMode: "forwards",
-          }}
-        >
-          A sacred mountain sanctuary where faith meets breathtaking nature —
-          a pilgrimage of peace, wonder, and spiritual renewal.
-        </p>
-
-        {/* CTA Buttons */}
-        <div
-          className="flex flex-col sm:flex-row gap-4 justify-center mt-10 animate-slide-up"
-          style={{
-            animationDelay: "0.7s",
-            opacity: 0,
-            animationFillMode: "forwards",
-          }}
-        >
+          {/* DISCOVER */}
           <button
-            onClick={scrollToAbout}
-            className="px-8 py-3.5 bg-brand-red text-white rounded-full font-medium hover:bg-brand-red-dark transition-all duration-300 shadow-xl shadow-red-900/40 hover:shadow-red-900/60 hover:-translate-y-0.5"
-            style={{ fontFamily: "'Lato', sans-serif" }}
+            type="button"
+            onClick={() => scrollTo("#about")}
+            className="min-w-[175px] rounded-full bg-white px-8 py-3.5 text-base font-semibold text-[#1d1d1f] shadow-lg transition-all duration-300 hover:scale-[1.02] hover:bg-[#f5f5f7]"
+            style={{
+              fontFamily:
+                "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            }}
           >
-            Explore Monte Maria
+            Discover
           </button>
+
+          {/* EXPLORE ATTRACTIONS */}
           <button
-            onClick={() =>
-              document
-                .querySelector("#landmarks")
-                ?.scrollIntoView({ behavior: "smooth" })
-            }
-            className="px-8 py-3.5 border border-white/60 text-white rounded-full font-medium hover:bg-white hover:text-brand-red transition-all duration-300 hover:-translate-y-0.5"
-            style={{ fontFamily: "'Lato', sans-serif" }}
+            type="button"
+            onClick={() => scrollTo("#attractions")}
+            className="min-w-[230px] rounded-full bg-[#c1122f] px-8 py-3.5 text-base font-semibold text-white shadow-lg transition-all duration-300 hover:scale-[1.02] hover:bg-[#a90f29]"
+            style={{
+              fontFamily:
+                "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            }}
           >
-            View Landmarks
+            Explore attractions
           </button>
         </div>
-      </div>
 
-      {/* Scroll indicator */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 animate-bounce">
-        <div className="w-6 h-10 border-2 border-white/40 rounded-full flex items-start justify-center p-1.5">
-          <div className="w-1 h-2 bg-white/70 rounded-full" />
-        </div>
+        {/* ================= BOTTOM GRADIENT ================= */}
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-black/40 to-transparent" />
+
+        {/* ================= SCROLL INDICATOR ================= */}
+        <button
+          type="button"
+          onClick={() => scrollTo("#about")}
+          className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap text-sm font-medium text-white/75 transition hover:text-white"
+          style={{
+            fontFamily:
+              "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+          }}
+        >
+          Scroll to discover ↓
+        </button>
       </div>
     </section>
   );

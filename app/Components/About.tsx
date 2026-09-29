@@ -1,127 +1,79 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+const stats = [
+  { value: "1,200+", label: "Steps of pilgrimage" },
+  { value: "3", label: "Sacred chapels" },
+  { value: "365", label: "Days open" },
+  { value: "∞", label: "Blessings received" },
+];
 
 export default function About() {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) e.target.classList.add("visible");
-        });
-      },
-      { threshold: 0.15 }
-    );
-    ref.current?.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
-
-  const stats = [
-    { value: "1,200+", label: "Steps of Pilgrimage" },
-    { value: "3", label: "Sacred Chapels" },
-    { value: "365", label: "Days Open" },
-    { value: "∞", label: "Blessings Received" },
-  ];
-
   return (
-    <section id="about" ref={ref} className="py-28 bg-white relative overflow-hidden">
-      {/* Background cross watermark */}
-      <div className="absolute right-0 top-0 w-96 h-96 opacity-[0.03] pointer-events-none">
-        <div className="relative w-full h-full flex items-center justify-center">
-          <div className="absolute w-6 h-full bg-brand-red rounded-full" />
-          <div className="absolute w-full h-6 bg-brand-red rounded-full" />
-        </div>
-      </div>
+    <section id="about" className="bg-[#f5f5f7] py-16 md:py-20">
+      <div className="mx-auto max-w-7xl px-6 lg:px-8">
 
-      <div className="max-w-7xl mx-auto px-6">
-        {/* Section Label */}
-        <div className="reveal cross-divider text-brand-red mb-4 max-w-xs">
-          <span
-            className="text-xs tracking-[0.35em] uppercase text-brand-red font-medium"
-            style={{ fontFamily: "'Lato', sans-serif" }}
-          >
-            Our Story
-          </span>
-        </div>
+        {/* MAIN CONTENT */}
+        <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
 
-        <div className="grid md:grid-cols-2 gap-16 items-center">
-          {/* Left: Text */}
+          {/* LEFT */}
           <div>
-            <h2
-              className="reveal text-5xl md:text-6xl font-bold text-gray-900 leading-tight mb-8"
-              style={{ fontFamily: "'Playfair Display', serif" }}
-            >
-              A Place of
-              <br />
-              <span className="text-brand-red italic">Faith & Grace</span>
+            <p className="mb-4 text-sm font-medium text-[#6e6e73]">
+              Our story
+            </p>
+
+            <h2 className="max-w-2xl text-5xl font-semibold leading-[0.95] tracking-[-0.055em] text-[#1d1d1f] md:text-6xl lg:text-7xl">
+              A place shaped by
+              <span className="block text-[#c1122f]">
+                faith and wonder.
+              </span>
             </h2>
 
-            <div
-              className="reveal space-y-5 text-gray-600 leading-relaxed"
-              style={{
-                fontFamily: "'Lato', sans-serif",
-                transitionDelay: "0.15s",
-              }}
-            >
-              <p>
-                Nestled on a mountain overlooking the stunning Kumintang Ibaba coastline in Batangas,
-                Monte Maria is a sacred sanctuary dedicated to the Blessed Virgin Mary.
-                This spiritual haven offers pilgrims and visitors a profound journey of
-                faith, beauty, and inner peace.
-              </p>
-              <p>
-                The site was established by the Vincentian Fathers and features remarkable
-                religious landmarks set against breathtaking natural scenery. From the
-                iconic Gate of the Archangels to the awe-inspiring Glass Walk, every corner
-                of Monte Maria invites reflection, prayer, and wonder.
-              </p>
-              <p>
-                Whether you come seeking spiritual renewal, a family outing, or simply the
-                magnificent Sea View, Monte Maria welcomes all with
-                open arms and a spirit of deep Marian devotion.
-              </p>
-            </div>
+            <p className="mt-8 max-w-xl text-lg font-medium leading-relaxed text-[#424245] md:text-xl">
+              Nestled on a mountain overlooking the Batangas coastline,
+              Monte Maria welcomes pilgrims, families, and travelers to a
+              sanctuary of prayer, reflection, beauty, and unforgettable views.
+            </p>
 
+            <p className="mt-5 max-w-lg text-sm leading-6 text-[#86868b]">
+              Sacred landmarks, peaceful spaces, and dramatic scenery come
+              together in a destination created for moments of devotion and
+              discovery.
+            </p>
           </div>
 
-          {/* Right: Image + Stats */}
-          <div className="reveal" style={{ transitionDelay: "0.2s" }}>
-            <div className="relative">
-              {/* Main image */}
-              <div className="relative overflow-hidden rounded-2xl shadow-2xl shadow-gray-900/20">
-                <img
-                  src="monte2.jpg"
-                  alt="Monte Maria Chapel"
-                  className="w-full h-[420px] object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-              </div>
+          {/* RIGHT IMAGE */}
+          <div className="relative overflow-hidden rounded-[32px]">
+            <img
+              src="/monte2.jpg"
+              alt="Monte Maria overlooking the Batangas coastline"
+              className="h-[420px] w-full object-cover md:h-[500px]"
+            />
 
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent p-7 pt-24">
+              <p className="text-sm font-semibold text-white">
+                Montemaria, Batangas
+              </p>
+              <p className="mt-1 max-w-sm text-sm text-white/75">
+                Faith, reflection, and breathtaking views above the coast.
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Stats Row */}
-        <div className="reveal mt-24 grid grid-cols-2 md:grid-cols-4 gap-6" style={{ transitionDelay: "0.4s" }}>
-          {stats.map((s) => (
+        {/* STATS */}
+        <div className="mt-10 grid grid-cols-2 gap-3 md:grid-cols-4">
+          {stats.map((stat) => (
             <div
-              key={s.label}
-              className="text-center py-8 px-4 border border-gray-300 rounded-2xl hover:border-brand-red/30 hover:shadow-lg hover:shadow-red-50 transition-all card-lift"
+              key={stat.label}
+              className="rounded-[24px] bg-white px-6 py-6"
             >
-              <div
-                className="text-4xl text-black font-bold text-brand-red mb-2"
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                {s.value}
-              </div>
-              <div
-                className="text-sm text-gray-500 tracking-wide uppercase"
-                style={{ fontFamily: "'Lato', sans-serif" }}
-              >
-                {s.label}
-              </div>
+              <p className="text-3xl font-semibold tracking-tight text-[#1d1d1f] md:text-4xl">
+                {stat.value}
+              </p>
+
+              <p className="mt-2 text-sm text-[#86868b]">
+                {stat.label}
+              </p>
             </div>
           ))}
         </div>
