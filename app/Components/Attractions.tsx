@@ -1,7 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+
+/* =========================================================
+   PROPS
+========================================================= */
+
+interface AttractionsProps {
+  onPlanVisit: () => void;
+}
+
+/* =========================================================
+   ATTRACTION DATA
+========================================================= */
 
 const attractions = [
   {
@@ -48,11 +59,15 @@ const attractions = [
   },
 ];
 
-export default function Attractions() {
+/* =========================================================
+   COMPONENT
+========================================================= */
+
+export default function Attractions({
+  onPlanVisit,
+}: AttractionsProps) {
   const [active, setActive] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
-
-  const router = useRouter();
 
   const current = attractions[active];
 
@@ -60,11 +75,14 @@ export default function Attractions() {
      AUTO PLAY
      Changes attraction every 5 seconds
   ========================================================= */
+
   useEffect(() => {
     if (!isPlaying) return;
 
     const interval = window.setInterval(() => {
-      setActive((previous) => (previous + 1) % attractions.length);
+      setActive(
+        (previous) => (previous + 1) % attractions.length
+      );
     }, 5000);
 
     return () => window.clearInterval(interval);
@@ -73,6 +91,7 @@ export default function Attractions() {
   /* =========================================================
      MANUAL SELECT
   ========================================================= */
+
   const selectAttraction = (index: number) => {
     setActive(index);
   };
@@ -87,6 +106,7 @@ export default function Attractions() {
         {/* =====================================================
             HEADER
         ===================================================== */}
+
         <div className="mb-9 flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
             <p className="mb-3 text-sm font-medium text-[#a1a1a6]">
@@ -99,14 +119,15 @@ export default function Attractions() {
           </div>
 
           <p className="max-w-md text-sm leading-6 text-[#a1a1a6] md:text-base">
-            Discover experiences that bring together scenery, exploration,
-            and memorable moments at Monte Maria.
+            Discover experiences that bring together scenery,
+            exploration, and memorable moments at Monte Maria.
           </p>
         </div>
 
         {/* =====================================================
             ATTRACTION SELECTOR
         ===================================================== */}
+
         <div className="mb-7 flex flex-wrap gap-2">
           {attractions.map((attraction, index) => (
             <button
@@ -127,12 +148,13 @@ export default function Attractions() {
         {/* =====================================================
             MAIN ATTRACTION CARD
         ===================================================== */}
+
         <div className="overflow-hidden rounded-[32px] bg-[#1d1d1f]">
           <div className="grid lg:grid-cols-[1.15fr_0.85fr]">
 
             {/* ================= IMAGE ================= */}
-            <div className="relative min-h-[360px] overflow-hidden md:min-h-[480px]">
 
+            <div className="relative min-h-[360px] overflow-hidden md:min-h-[480px]">
               {attractions.map((attraction, index) => (
                 <img
                   key={attraction.name}
@@ -147,9 +169,11 @@ export default function Attractions() {
               ))}
 
               {/* IMAGE OVERLAY */}
+
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent lg:bg-gradient-to-r lg:from-transparent lg:to-black/15" />
 
               {/* BADGE */}
+
               <div className="absolute left-6 top-6">
                 <span className="rounded-full bg-white/90 px-4 py-2 text-xs font-semibold text-black backdrop-blur-md">
                   {current.badge}
@@ -158,26 +182,31 @@ export default function Attractions() {
             </div>
 
             {/* ================= CONTENT ================= */}
+
             <div
               key={current.name}
               className="flex flex-col justify-center p-7 md:p-10 lg:p-12"
             >
               {/* TAGLINE */}
+
               <p className="text-sm font-medium text-[#a1a1a6]">
                 {current.tagline}
               </p>
 
               {/* NAME */}
+
               <h3 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">
                 {current.name}
               </h3>
 
               {/* DESCRIPTION */}
+
               <p className="mt-6 text-base leading-7 text-[#a1a1a6]">
                 {current.description}
               </p>
 
               {/* HIGHLIGHTS */}
+
               <div className="mt-7 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
                 {current.highlights.map((highlight) => (
                   <div
@@ -191,11 +220,18 @@ export default function Attractions() {
                 ))}
               </div>
 
-              {/* ACTION */}
+              {/* =================================================
+                  PLAN YOUR VISIT
+
+                  IMPORTANT:
+                  This no longer redirects directly to /dashboard.
+                  It opens the shared login modal from app/page.tsx.
+              ================================================== */}
+
               <div className="mt-9">
                 <button
                   type="button"
-                  onClick={() => router.push("/dashboard")}
+                  onClick={onPlanVisit}
                   className="rounded-full bg-[#c1122f] px-6 py-3 text-sm font-semibold text-white transition-all duration-300 hover:scale-[1.02] hover:bg-[#a70f28]"
                 >
                   Plan your visit
@@ -208,11 +244,12 @@ export default function Attractions() {
         {/* =====================================================
             CAROUSEL CONTROLS
         ===================================================== */}
+
         <div className="mt-8 flex items-center justify-center gap-4">
 
           {/* DOT / PROGRESS CONTAINER */}
-          <div className="flex items-center gap-4 rounded-full bg-[#1d1d1f] px-5 py-4">
 
+          <div className="flex items-center gap-4 rounded-full bg-[#1d1d1f] px-5 py-4">
             {attractions.map((attraction, index) => (
               <button
                 type="button"
@@ -225,12 +262,14 @@ export default function Attractions() {
                   <span className="relative block h-2 w-14 overflow-hidden rounded-full bg-white/25">
 
                     {/* PROGRESS */}
+
                     {isPlaying ? (
                       <span
                         key={`${active}-${isPlaying}`}
                         className="absolute inset-y-0 left-0 rounded-full bg-white"
                         style={{
-                          animation: "attractionProgress 5s linear forwards",
+                          animation:
+                            "attractionProgress 5s linear forwards",
                         }}
                       />
                     ) : (
@@ -245,20 +284,29 @@ export default function Attractions() {
           </div>
 
           {/* PLAY / PAUSE BUTTON */}
+
           <button
             type="button"
-            onClick={() => setIsPlaying((previous) => !previous)}
-            aria-label={isPlaying ? "Pause slideshow" : "Play slideshow"}
+            onClick={() =>
+              setIsPlaying((previous) => !previous)
+            }
+            aria-label={
+              isPlaying
+                ? "Pause slideshow"
+                : "Play slideshow"
+            }
             className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1d1d1f] text-white transition-all duration-300 hover:bg-[#2c2c2e]"
           >
             {isPlaying ? (
               /* PAUSE ICON */
+
               <div className="flex items-center gap-1">
                 <span className="h-4 w-1.5 rounded-sm bg-white" />
                 <span className="h-4 w-1.5 rounded-sm bg-white" />
               </div>
             ) : (
               /* PLAY ICON */
+
               <span
                 className="ml-1 block h-0 w-0"
                 style={{
@@ -275,6 +323,7 @@ export default function Attractions() {
       {/* =====================================================
           PROGRESS BAR ANIMATION
       ===================================================== */}
+
       <style jsx>{`
         @keyframes attractionProgress {
           from {
