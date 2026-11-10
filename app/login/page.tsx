@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth } from "../lib/firebase"; // Clean relative path from app/login/ to root lib/
+import { auth, db } from "../lib/firebase"; // Clean relative path from app/login/ to root lib/
 import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,13 +30,23 @@ export default function LoginPage() {
     const user = userCredential.user;
     const userEmail = user.email ? user.email.toLowerCase() : "";
 
-    // 2. ROLE-BASED REDIRECTION SWITCH
-    if (userEmail.includes("tourism")) {
-      // If email has "tourism" (e.g., manager@tourism.com) -> send to Tourism Management
+    // 2. ROLE-BASED REDIRECTION SWITCH (via Firestore user doc and email heuristic)
+    let userRole = "";
+    try {
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        userRole = (userDoc.data()?.role || "").toLowerCase();
+      }
+    } catch (docErr) {
+      console.warn("Could not retrieve user role from Firestore:", docErr);
+    }
+
+    if (userRole === "tourism" || userRole === "admin" || userEmail.includes("tourism") || userEmail.includes("admin")) {
+      // Tourism Administrator -> send to Tourism Management
       router.push("/tourismdashboard");
     } 
-    else if (userEmail.includes("staff")) {
-      // If email has "staff" (e.g., guide@staff.montemaria.com) -> send to Staff Dashboard
+    else if (userRole === "staff" || userEmail.includes("staff")) {
+      // Staff member -> send to Staff Dashboard
       router.push("/staffdashboard");
     } 
     else {

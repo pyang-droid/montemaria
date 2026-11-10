@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  QrCode,
 } from "lucide-react";
 
 const navLinks = [
@@ -55,6 +56,12 @@ const navLinks = [
     href: "/tourismdashboard/accounts",
     icon: Users,
     description: "Visitor and staff accounts",
+  },
+  {
+    label: "Staff Portal",
+    href: "/staffdashboard",
+    icon: QrCode,
+    description: "QR scanner & station terminal",
   },
 ];
 

@@ -5,7 +5,7 @@ import {
   where,
 } from "firebase/firestore";
 
-import { db } from "@/lib/firebase";
+import { db } from "../../lib/firebase";
 
 import type {
   DailyBookingActivity,

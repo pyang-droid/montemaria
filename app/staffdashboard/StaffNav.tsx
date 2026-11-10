@@ -3,149 +3,220 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useStaffAuth } from "./StaffAuthGuard";
+import {
+  QrCode,
+  ShieldCheck,
+  CheckCircle2,
+  Users,
+  LayoutDashboard,
+  LogOut,
+  ExternalLink,
+  MapPin,
+  Menu,
+  X,
+} from "lucide-react";
 
 export default function StaffNav() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { accountData, role, isAdmin, assignedAttraction, logout } = useStaffAuth();
 
-  // Routing paths point to valid staff dashboard routes with corresponding icons
   const navLinks = [
-    { label: "Overview", href: "/staffdashboard", icon: "📊" },
-    { label: "QR Scanning", href: "/staffdashboard/qrcode", icon: "📷" },
-    { label: "Entry Validation", href: "/staffdashboard/entry-validation", icon: "✅" },
-    { label: "Capacity", href: "/staffdashboard/capacity-monitoring", icon: "👥" },
+    { label: "Overview", href: "/staffdashboard", icon: LayoutDashboard },
+    { label: "QR Scanning", href: "/staffdashboard/qrcode", icon: QrCode },
+    { label: "Entry Validation", href: "/staffdashboard/entry-validation", icon: CheckCircle2 },
+    { label: "Capacity", href: "/staffdashboard/capacity-monitoring", icon: Users },
   ];
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white shadow-md py-4">
-        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          {/* Logo Matching Admin Layout */}
-          <Link href="/" className="flex items-center gap-3">
-            <div className="relative w-8 h-8 flex items-center justify-center">
-              <div className="absolute w-1 h-8 rounded-full bg-gray-700" />
-              <div className="absolute w-8 h-1 rounded-full bg-gray-700" />
-            </div>
-            <div>
-              <span
-                className="text-xl font-bold text-gray-700 block line-height-none"
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                Monte Maria
-              </span>
-              <span
-                className="text-[10px] text-gray-400 uppercase tracking-widest block -mt-1"
-                style={{ fontFamily: "'Lato', sans-serif" }}
-              >
-                Staff Portal
-              </span>
-            </div>
-          </Link>
+      <nav className="fixed inset-x-0 top-0 z-50 h-[72px] border-b border-black/[0.06] bg-white/80 shadow-[0_1px_12px_rgba(0,0,0,0.04)] backdrop-blur-2xl transition-all">
+        <div className="mx-auto flex h-full max-w-[1280px] items-center justify-between px-5 md:px-8">
+          
+          {/* BRAND LOGO matching Landing Page */}
+          <div className="flex items-center gap-5">
+            <Link href="/" className="flex items-center gap-3 group">
+              <img
+                src="/montemarialogo.png"
+                alt="Montemaria Batangas Logo"
+                className="h-12 w-12 object-contain transition-transform duration-300 group-hover:scale-105"
+              />
+              <div className="hidden sm:block">
+                <span
+                  className="block text-xl font-semibold leading-none tracking-[-0.03em] text-[#1d1d1f]"
+                  style={{ fontFamily: "var(--font-cormorant), Georgia, serif" }}
+                >
+                  Montemaria
+                </span>
+                <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#86868b]">
+                  Staff Portal
+                </span>
+              </div>
+            </Link>
 
-          {/* Desktop Nav with Animated Underline and active highlighting */}
-          <div className="hidden md:flex items-center gap-6">
+            {/* Station / Terminal Badge in landing page pill style */}
+            <div className="hidden lg:flex items-center gap-2 rounded-full border border-black/[0.06] bg-[#f5f5f7] px-3.5 py-1 text-xs text-[#424245]">
+              <MapPin className="h-3.5 w-3.5 text-[#c1122f]" />
+              <span className="text-[11px] font-medium text-[#86868b]">Station:</span>
+              <span className="font-semibold text-[#1d1d1f]">{assignedAttraction || "Mirage Walk"}</span>
+            </div>
+          </div>
+
+          {/* DESKTOP NAVIGATION PILLS */}
+          <div className="hidden md:flex items-center gap-1.5 rounded-full border border-black/[0.05] bg-[#f5f5f7]/80 p-1">
             {navLinks.map((link) => {
+              const Icon = link.icon;
               const isActive = pathname === link.href;
 
               return (
                 <Link
                   key={link.label}
                   href={link.href}
-                  className={`relative text-sm tracking-widest uppercase font-medium transition-colors flex items-center gap-1.5 ${
+                  className={`flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition-all duration-200 ${
                     isActive
-                      ? "text-gray-400 font-semibold after:w-full after:bg-brand-red"
-                      : "text-gray-700 hover:text-brand-red after:w-0 hover:after:w-full after:bg-brand-red"
-                  } after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:h-[2px] after:transition-all after:duration-300`}
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                      ? "bg-white text-[#c1122f] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                      : "text-[#6e6e73] hover:text-[#1d1d1f] hover:bg-black/[0.02]"
+                  }`}
                 >
+                  <Icon className={`h-3.5 w-3.5 ${isActive ? "text-[#c1122f]" : "text-[#86868b]"}`} />
                   {link.label}
                 </Link>
               );
             })}
           </div>
 
-          {/* Staff Panel Settings */}
+          {/* RIGHT CONTROLS: ADMIN SWITCHER & USER PILL */}
           <div className="hidden md:flex items-center gap-3">
-            <span 
-              className="text-xs text-gray-400 uppercase tracking-wider font-semibold"
-              style={{ fontFamily: "'Lato', sans-serif" }}
-            >
-              Staff Panel
-            </span>
-            <button
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-full hover:bg-gray-50 transition-all flex items-center gap-2 text-sm"
-              style={{ fontFamily: "'Lato', sans-serif" }}
-            >
-              Logout
-            </button>
+            {/* If Tourism Admin, provide landing-style pill button to switch */}
+            {isAdmin && (
+              <Link
+                href="/tourismdashboard"
+                className="inline-flex items-center gap-2 rounded-full border border-black/[0.08] bg-white px-4 py-2 text-xs font-semibold text-[#1d1d1f] shadow-sm transition-all duration-200 hover:scale-[1.02] hover:bg-[#f5f5f7]"
+                title="Switch to Tourism Admin Dashboard"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 text-[#c1122f]" />
+                <span>Admin Office</span>
+                <ExternalLink className="h-3 w-3 text-[#86868b]" />
+              </Link>
+            )}
+
+            {/* User Pill */}
+            <div className="flex items-center gap-2.5 rounded-full border border-black/[0.06] bg-[#f5f5f7] pl-3.5 pr-1.5 py-1">
+              <div className="text-right">
+                <div className="flex items-center gap-1.5 justify-end">
+                  <span className="text-xs font-semibold text-[#1d1d1f] truncate max-w-[120px]">
+                    {accountData?.fullName || "Staff Officer"}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                      isAdmin ? "bg-[#c1122f]/10 text-[#c1122f]" : "bg-blue-50 text-blue-700"
+                    }`}
+                  >
+                    {role === "Tourism" ? "Admin" : "Staff"}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={logout}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#86868b] shadow-xs transition hover:text-[#c1122f] hover:shadow-sm"
+                title="Sign out of Terminal"
+                aria-label="Logout"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
 
-          {/* Animated Hamburger / Close Button */}
+          {/* MOBILE MENU TOGGLE */}
           <button
-            className="md:hidden flex flex-col gap-1.5 p-2"
+            type="button"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-black/[0.06] bg-[#f5f5f7] text-[#1d1d1f] md:hidden"
             onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label="Toggle Navigation Menu"
           >
-            <span
-              className={`block w-6 h-0.5 bg-brand-red transition-all duration-300 ${
-                mobileOpen ? "rotate-45 translate-y-2" : ""
-              }`}
-            />
-            <span
-              className={`block w-6 h-0.5 bg-brand-red transition-all duration-300 ${
-                mobileOpen ? "opacity-0" : ""
-              }`}
-            />
-            <span
-              className={`block w-6 h-0.5 bg-brand-red transition-all duration-300 ${
-                mobileOpen ? "-rotate-45 -translate-y-2" : ""
-              }`}
-            />
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
       </nav>
 
-      {/* Full-screen Mobile Menu Overlay */}
-      <div
-        className={`fixed inset-0 z-40 bg-white transition-all duration-500 ${
-          mobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-        }`}
-      >
-        <div className="h-full flex flex-col justify-center items-center px-6">
-          <div className="flex flex-col gap-6 w-full max-w-xs">
-            {navLinks.map((link) => (
-              <Link
-                key={link.label}
-                href={link.href}
-                onClick={() => setMobileOpen(false)}
-                className={`text-2xl font-serif text-left py-3 border-b-2 transition-all flex items-center gap-3 ${
-                  pathname === link.href
-                    ? "border-brand-red text-brand-red"
-                    : "border-transparent text-black hover:border-gray-300"
-                }`}
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                <span>{link.icon}</span>
-                {link.label}
-              </Link>
-            ))}
-            
-            <div className="pt-4 border-t border-gray-100 flex flex-col gap-3">
-              <span 
-                className="text-xs text-center text-gray-400 uppercase tracking-widest font-medium"
-                style={{ fontFamily: "'Lato', sans-serif" }}
-              >
-                Staff Panel Settings
-              </span>
-              <button
-                className="w-full py-3 border border-gray-300 rounded-full text-sm hover:bg-gray-50 transition-all"
-                style={{ fontFamily: "'Lato', sans-serif" }}
-              >
-                Logout
-              </button>
+      {/* MOBILE DRAWER */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-40 bg-white/95 backdrop-blur-2xl pt-24 px-6 pb-8 md:hidden flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="rounded-[24px] border border-black/[0.06] bg-[#f5f5f7] p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-medium text-[#86868b] uppercase tracking-wider">Active Staff</p>
+                  <p className="text-base font-semibold text-[#1d1d1f] mt-0.5">{accountData?.fullName}</p>
+                  <p className="text-xs text-[#86868b] font-mono">{accountData?.email}</p>
+                </div>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${
+                    isAdmin ? "bg-[#c1122f]/10 text-[#c1122f]" : "bg-blue-50 text-blue-700"
+                  }`}
+                >
+                  {role}
+                </span>
+              </div>
+              <div className="mt-3 pt-3 border-t border-black/[0.05] flex items-center gap-2 text-xs text-[#424245]">
+                <MapPin className="h-3.5 w-3.5 text-[#c1122f]" />
+                <span>Station: <strong>{assignedAttraction}</strong></span>
+              </div>
             </div>
+
+            <div className="space-y-1.5">
+              {navLinks.map((link) => {
+                const Icon = link.icon;
+                const isActive = pathname === link.href;
+                return (
+                  <Link
+                    key={link.label}
+                    href={link.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold transition ${
+                      isActive
+                        ? "bg-[#c1122f]/10 text-[#c1122f]"
+                        : "text-[#424245] hover:bg-[#f5f5f7]"
+                    }`}
+                  >
+                    <Icon className={`h-4 w-4 ${isActive ? "text-[#c1122f]" : "text-[#86868b]"}`} />
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {isAdmin && (
+              <Link
+                href="/tourismdashboard"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center justify-between rounded-2xl border border-black/[0.08] bg-white p-4 text-sm font-semibold text-[#1d1d1f] shadow-xs"
+              >
+                <span className="flex items-center gap-2.5">
+                  <ShieldCheck className="h-4 w-4 text-[#c1122f]" />
+                  Tourism Administrator Dashboard
+                </span>
+                <ExternalLink className="h-4 w-4 text-[#86868b]" />
+              </Link>
+            )}
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMobileOpen(false);
+              logout();
+            }}
+            className="w-full rounded-full border border-black/10 bg-white py-3.5 text-sm font-semibold text-[#c1122f] shadow-xs hover:bg-red-50 flex items-center justify-center gap-2 transition"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign Out of Terminal
+          </button>
         </div>
-      </div>
+      )}
     </>
   );
 }

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../lib/firebase";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -42,11 +43,21 @@ export default function LoginModal({
       const userEmail =
         userCredential.user.email?.toLowerCase() || "";
 
+      let userRole = "";
+      try {
+        const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
+        if (userDoc.exists()) {
+          userRole = (userDoc.data()?.role || "").toLowerCase();
+        }
+      } catch (docErr) {
+        console.warn("Could not retrieve user role from Firestore:", docErr);
+      }
+
       onClose();
 
-      if (userEmail.includes("tourism")) {
+      if (userRole === "tourism" || userRole === "admin" || userEmail.includes("tourism") || userEmail.includes("admin")) {
         router.push("/tourismdashboard");
-      } else if (userEmail.includes("staff")) {
+      } else if (userRole === "staff" || userEmail.includes("staff")) {
         router.push("/staffdashboard");
       } else {
         router.push("/dashboard");
