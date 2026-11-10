@@ -74,7 +74,7 @@ function CapacityMonitoringContent() {
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#c1122f]">
-                Crowd Regulation • Visitor Monitoring Information (Flow 3.0)
+                Crowd Regulation • Visitor Monitoring
               </p>
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-[-0.045em] text-[#1d1d1f] mt-1">
                 Capacity &amp; <span className="text-[#c1122f]">Crowd Monitoring</span>

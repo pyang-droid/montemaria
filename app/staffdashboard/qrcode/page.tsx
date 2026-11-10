@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { IScannerControls } from "@zxing/browser";
 import StaffAuthGuard, { useStaffAuth } from "../StaffAuthGuard";
 import StaffNav from "../StaffNav";
 import {
@@ -35,10 +36,100 @@ function QRCodeContent() {
   const [inputCode, setInputCode] = useState("");
   const [filterType, setFilterType] = useState<"ALL" | "ENTRY" | "EXIT" | "DENIED">("ALL");
   const [searchTerm, setSearchTerm] = useState("");
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
+  const scanHandledRef = useRef(false);
+  const scanModeRef = useRef(scanMode);
+  const verifyCodeRef = useRef(verifyAndProcessCode);
+
+  useEffect(() => {
+    scanModeRef.current = scanMode;
+    verifyCodeRef.current = verifyAndProcessCode;
+  }, [scanMode, verifyAndProcessCode]);
+
+  useEffect(() => {
+    const requestedMode = new URLSearchParams(window.location.search).get("mode");
+    if (requestedMode === "ENTRY" || requestedMode === "EXIT") {
+      setScanMode(requestedMode);
+    }
+  }, [setScanMode]);
+
+  useEffect(() => {
+    if (!cameraActive) return;
+
+    let cancelled = false;
+    scanHandledRef.current = false;
+
+    const startCamera = async () => {
+      try {
+        const { BrowserQRCodeReader } = await import("@zxing/browser");
+        const video = videoRef.current;
+        if (!video) {
+          throw new Error("The camera preview could not be initialized.");
+        }
+
+        const reader = new BrowserQRCodeReader();
+        const controls = await reader.decodeFromVideoDevice(
+          undefined,
+          video,
+          (result, _error, callbackControls) => {
+            if (!result || scanHandledRef.current) return;
+
+            scanHandledRef.current = true;
+            callbackControls.stop();
+            scannerControlsRef.current = null;
+            setCameraActive(false);
+            verifyCodeRef.current(result.getText(), scanModeRef.current);
+          }
+        );
+
+        if (cancelled) {
+          controls.stop();
+        } else {
+          scannerControlsRef.current = controls;
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setCameraActive(false);
+        setCameraError(
+          error instanceof Error
+            ? error.message
+            : "Unable to access the camera. Check browser permissions and try again."
+        );
+      }
+    };
+
+    void startCamera();
+
+    return () => {
+      cancelled = true;
+      scannerControlsRef.current?.stop();
+      scannerControlsRef.current = null;
+    };
+  }, [cameraActive]);
+
+  const handleCameraToggle = () => {
+    if (cameraActive) {
+      scannerControlsRef.current?.stop();
+      scannerControlsRef.current = null;
+      setCameraActive(false);
+      return;
+    }
+
+    setCameraError("");
+    setLastVerification(null);
+    scanHandledRef.current = false;
+    setCameraActive(true);
+  };
 
   const handleScanSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputCode.trim()) return;
+    scannerControlsRef.current?.stop();
+    scannerControlsRef.current = null;
+    setCameraActive(false);
     verifyAndProcessCode(inputCode);
     setInputCode("");
   };
@@ -115,36 +206,76 @@ function QRCodeContent() {
                     Optical Scanner Feed
                   </h2>
                   <span className="rounded-full bg-[#f5f5f7] border border-black/[0.06] px-3.5 py-1 text-[11px] font-semibold text-[#424245]">
-                    Station: {currentAttraction.name}
+                   Attraction: {currentAttraction.name}
                   </span>
                 </div>
 
-                {/* Viewfinder display */}
-                <div className="relative rounded-[24px] bg-[#1d1d1f] overflow-hidden aspect-video flex flex-col items-center justify-center text-white mb-6 border border-black/10 shadow-inner">
+                {/* Live camera viewfinder */}
+                <div className="relative mb-4 aspect-video overflow-hidden rounded-[24px] border border-black/10 bg-[#1d1d1f] text-white shadow-inner">
+                  <video
+                    ref={videoRef}
+                    className={`absolute inset-0 h-full w-full object-cover ${
+                      cameraActive ? "opacity-100" : "opacity-0"
+                    }`}
+                    muted
+                    playsInline
+                    aria-label="Live QR scanner camera preview"
+                  />
                   {/* Framing corners */}
-                  <div className="absolute inset-8 border border-white/15 rounded-2xl pointer-events-none flex flex-col justify-between p-4">
+                  <div className="pointer-events-none absolute inset-8 flex flex-col justify-between rounded-2xl border border-white/15 p-4">
                     <div className="flex justify-between">
                       <div className="h-6 w-6 border-t-2 border-l-2 border-[#c1122f]" />
                       <div className="h-6 w-6 border-t-2 border-r-2 border-[#c1122f]" />
                     </div>
-                    {/* Laser line */}
-                    <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-[#c1122f] to-transparent animate-pulse shadow-sm shadow-[#c1122f]" />
+                    {cameraActive && (
+                      <div className="h-0.5 w-full animate-pulse bg-gradient-to-r from-transparent via-[#c1122f] to-transparent shadow-sm shadow-[#c1122f]" />
+                    )}
                     <div className="flex justify-between">
                       <div className="h-6 w-6 border-b-2 border-l-2 border-[#c1122f]" />
                       <div className="h-6 w-6 border-b-2 border-r-2 border-[#c1122f]" />
                     </div>
                   </div>
 
-                  <ScanLine className="h-12 w-12 text-white/50 mb-3 animate-bounce" />
-                  <p className="text-sm font-semibold tracking-wider uppercase text-white/90">
-                    {scanMode === "ENTRY" ? "ENTRY SCAN ACTIVE" : "EXIT SCAN ACTIVE"}
-                  </p>
-                  <p className="text-xs text-white/50 mt-1">
-                    Align QR code in center of viewfinder
-                  </p>
+                  {!cameraActive && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <ScanLine className="mb-3 h-12 w-12 text-white/50" />
+                      <p className="text-sm font-semibold uppercase tracking-wider text-white/90">
+                        Camera is off
+                      </p>
+                      <p className="mt-1 text-xs text-white/50">
+                        Start the camera to scan a visitor QR code
+                      </p>
+                    </div>
+                  )}
+                  {cameraActive && (
+                    <div className="absolute inset-x-0 bottom-4 text-center text-xs font-semibold text-white drop-shadow">
+                      {scanMode === "ENTRY" ? "ENTRY SCAN ACTIVE" : "EXIT SCAN ACTIVE"}
+                    </div>
+                  )}
                 </div>
 
-                {/* Manual Code Input Bar */}
+                <button
+                  type="button"
+                  onClick={handleCameraToggle}
+                  className={`mb-5 flex w-full items-center justify-center gap-2 rounded-full py-3 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition ${
+                    cameraActive
+                      ? "bg-[#1d1d1f] hover:bg-black"
+                      : scanMode === "ENTRY"
+                      ? "bg-emerald-600 hover:bg-emerald-700"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+                >
+                  <Camera className="h-4 w-4" />
+                  {cameraActive ? "Stop Camera" : "Start Camera"}
+                </button>
+
+                {cameraError && (
+                  <p role="alert" className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                    Camera access failed: {cameraError}
+                  </p>
+                )}
+
+                {/* Manual code entry remains available as a fallback */}
                 <form onSubmit={handleScanSubmit} className="space-y-3">
                   <div className="flex gap-2">
                     <div className="relative flex-1">
@@ -152,7 +283,7 @@ function QRCodeContent() {
                         type="text"
                         value={inputCode}
                         onChange={(e) => setInputCode(e.target.value)}
-                        placeholder="Scan or type QR code (e.g. MM-2026-8812)"
+                        placeholder="Enter ticket code manually"
                         className="w-full pl-11 pr-4 py-3 bg-[#f5f5f7] border border-black/[0.08] rounded-full text-xs font-mono text-[#1d1d1f] placeholder:text-gray-400 focus:bg-white focus:border-[#c1122f] focus:ring-2 focus:ring-[#c1122f]/10 outline-none transition"
                         autoFocus
                       />
@@ -170,50 +301,6 @@ function QRCodeContent() {
                     </button>
                   </div>
                 </form>
-
-                {/* Preset Scan Helpers in Landing Page Pill Style */}
-                <div className="mt-5 pt-4 border-t border-black/[0.05]">
-                  <p className="text-[10px] font-bold text-[#86868b] uppercase tracking-[0.14em] mb-2.5">
-                    Simulation Presets:
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => verifyAndProcessCode("MM-2026-8812")}
-                      className="rounded-full border border-black/[0.06] bg-[#f5f5f7] hover:bg-white px-3 py-1 text-xs font-mono text-[#424245] transition-all hover:border-[#c1122f]/40 cursor-pointer"
-                    >
-                      ✓ Valid Single Pass
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => verifyAndProcessCode("MM-2026-4431")}
-                      className="rounded-full border border-black/[0.06] bg-[#f5f5f7] hover:bg-white px-3 py-1 text-xs font-mono text-[#424245] transition-all hover:border-[#c1122f]/40 cursor-pointer"
-                    >
-                      ✓ All-Access 4 Pax
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => verifyAndProcessCode("MM-2026-USED1")}
-                      className="rounded-full border border-black/[0.06] bg-[#f5f5f7] hover:bg-white px-3 py-1 text-xs font-mono text-amber-800 transition-all hover:border-amber-400 cursor-pointer"
-                    >
-                      ⚠ Already Used
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => verifyAndProcessCode("MM-2026-EXPD9")}
-                      className="rounded-full border border-black/[0.06] bg-[#f5f5f7] hover:bg-white px-3 py-1 text-xs font-mono text-red-800 transition-all hover:border-red-400 cursor-pointer"
-                    >
-                      ✗ Expired Pass
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => verifyAndProcessCode("MM-2026-WRONG")}
-                      className="rounded-full border border-black/[0.06] bg-[#f5f5f7] hover:bg-white px-3 py-1 text-xs font-mono text-orange-800 transition-all hover:border-orange-400 cursor-pointer"
-                    >
-                      ⛔ Wrong Zone
-                    </button>
-                  </div>
-                </div>
 
                 {/* Scans Statistics Box in Landing Page Style */}
                 <div className="mt-6 pt-5 border-t border-black/[0.05] grid grid-cols-2 gap-3.5">
@@ -236,7 +323,7 @@ function QRCodeContent() {
                 </div>
               </div>
 
-              {/* TICKET VERIFICATION RESULT CARD (Flow 3.0 -> Staff) */}
+              {/* TICKET VERIFICATION RESULT CARD */}
               {lastVerification && (
                 <div
                   className={`rounded-[28px] p-7 border transition-all shadow-sm ${
@@ -267,7 +354,7 @@ function QRCodeContent() {
 
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#86868b]">
-                          Flow 3.0: Ticket Verification Result
+                          Ticket Verification Result
                         </span>
                         <h3 className="text-xl font-semibold tracking-[-0.03em] text-[#1d1d1f] leading-tight">
                           {lastVerification.status === "VERIFIED_VALID"
@@ -354,7 +441,7 @@ function QRCodeContent() {
                       Scan History
                     </h2>
                     <p className="text-xs text-[#86868b] mt-0.5">
-                      Real-time verification log records (Flow 3.0)
+                      Real-time verification log records
                     </p>
                   </div>
                   <span className="text-xs font-mono font-semibold text-[#86868b]">

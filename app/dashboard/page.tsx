@@ -237,12 +237,6 @@ export default function DashboardPage() {
     booking: BookingDetails,
     method: PaymentMethod
   ): Promise<void> => {
-    // Payment gateway is not yet integrated.
-    //
-    // Do not mark the booking as confirmed,
-    // generate a valid QR ticket, or display
-    // a successful payment without verification.
-
     if (!booking || !method) {
       throw new Error(
         "Please complete your booking and select a payment method."
@@ -255,7 +249,6 @@ export default function DashboardPage() {
       "during backend development.";
 
     setPaymentError(message);
-
     throw new Error(message);
   };
 

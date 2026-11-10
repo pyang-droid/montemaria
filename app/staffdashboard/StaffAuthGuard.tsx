@@ -273,7 +273,7 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
             <div>
               <span className="font-semibold text-[#1d1d1f]">Security Policy:</span> Only accounts registered under{" "}
               <span className="font-bold text-[#c1122f]">Staff</span> or{" "}
-              <span className="font-bold text-[#c1122f]">Tourism Office</span> are granted terminal clearance.
+              <span className="font-bold text-[#c1122f]">Tourism Office</span> are granted operational access.
             </div>
           </div>
 
@@ -320,7 +320,7 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
               className="w-full py-3.5 rounded-full bg-[#c1122f] hover:bg-[#a50f28] text-white font-semibold text-sm shadow-sm transition-all duration-300 hover:scale-[1.01] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               {loginLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-              Sign In to Station
+              Sign In
             </button>
           </form>
 

@@ -27,6 +27,7 @@ import {
   KeyRound,
   FileText,
   BadgeCheck,
+  Camera,
 } from "lucide-react";
 
 function StaffDashboardContent() {
@@ -113,7 +114,7 @@ function StaffDashboardContent() {
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#c1122f]">
-                Terminal Operations • Manage Attraction Operations (3.0)
+                Attraction Operations • Visitor Management
               </p>
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-[-0.045em] text-[#1d1d1f] mt-1">
                 Operations <span className="text-[#c1122f]">Command Center</span>
@@ -197,7 +198,7 @@ function StaffDashboardContent() {
               </div>
 
               <div className="mt-5 pt-4 border-t border-black/[0.05] flex items-center justify-between text-[11px] text-[#86868b]">
-                <span>Terminal: {currentAttraction.stationTerminal.split("-")[0]}</span>
+                <span>Assigned Attraction: {currentAttraction.stationTerminal.split("-")[0]}</span>
                 <span className="text-emerald-700 font-semibold">Active Session ✓</span>
               </div>
             </div>
@@ -211,7 +212,7 @@ function StaffDashboardContent() {
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                   <div className="flex items-center gap-2">
                     <span className="rounded-full bg-white/10 px-3.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/90 border border-white/20">
-                      Assigned Attraction (Flow 3.0)
+                      Assigned Attraction
                     </span>
                     <span className="rounded-full bg-[#c1122f]/40 px-3 py-1 text-[10px] font-semibold text-rose-200">
                       {currentAttraction.type} Experience
@@ -337,30 +338,20 @@ function StaffDashboardContent() {
                   </div>
                 </div>
 
-                {/* Viewfinder box */}
-                <div className="relative rounded-[24px] bg-[#1d1d1f] overflow-hidden aspect-video sm:aspect-21/9 flex flex-col items-center justify-center text-white mb-5 border border-black/10 shadow-inner">
-                  {/* Framing crosshairs */}
-                  <div className="absolute inset-7 border border-white/15 rounded-2xl pointer-events-none flex flex-col justify-between p-3">
-                    <div className="flex justify-between">
-                      <div className="h-5 w-5 border-t-2 border-l-2 border-[#c1122f]" />
-                      <div className="h-5 w-5 border-t-2 border-r-2 border-[#c1122f]" />
-                    </div>
-                    {/* Laser line */}
-                    <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-[#c1122f] to-transparent animate-pulse shadow-sm shadow-[#c1122f]" />
-                    <div className="flex justify-between">
-                      <div className="h-5 w-5 border-b-2 border-l-2 border-[#c1122f]" />
-                      <div className="h-5 w-5 border-b-2 border-r-2 border-[#c1122f]" />
-                    </div>
-                  </div>
-
-                  <ScanLine className="h-10 w-10 text-white/50 mb-2 animate-bounce" />
-                  <p className="text-xs font-semibold uppercase tracking-wider text-white/90">
-                    {scanMode === "ENTRY" ? "Ready for Entry QR Code" : "Ready for Exit QR Code"}
-                  </p>
-                  <p className="text-[11px] text-white/50 mt-0.5">
-                    Align visitor mobile QR code or printed ticket barcode
-                  </p>
-                </div>
+                <Link
+                  href={`/staffdashboard/qrcode?mode=${scanMode}`}
+                  className="mb-5 flex min-h-32 items-center justify-center gap-3 rounded-[24px] border border-black/[0.06] bg-[#f5f5f7] p-6 text-center transition hover:border-[#c1122f]/30 hover:bg-white"
+                >
+                  <Camera className="h-8 w-8 shrink-0 text-[#c1122f]" />
+                  <span>
+                    <span className="block text-sm font-semibold text-[#1d1d1f]">
+                      Open Camera Scanner
+                    </span>
+                    <span className="mt-1 block text-xs text-[#6e6e73]">
+                      Scan a visitor QR code for {scanMode.toLowerCase()} and verify the pass.
+                    </span>
+                  </span>
+                </Link>
 
                 {/* Manual Barcode Input Form */}
                 <form onSubmit={handleScanSubmit} className="space-y-3">
@@ -389,52 +380,9 @@ function StaffDashboardContent() {
                   </div>
                 </form>
 
-                {/* Simulation presets in landing page pill style */}
-                <div className="mt-5 pt-4 border-t border-black/[0.05]">
-                  <p className="text-[10px] font-bold text-[#86868b] uppercase tracking-[0.14em] mb-2.5">
-                    Quick Demonstration Presets:
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => verifyAndProcessCode("MM-2026-8812")}
-                      className="rounded-full border border-black/[0.06] bg-[#f5f5f7] hover:bg-white px-3 py-1 text-xs font-mono text-[#424245] transition-all hover:border-[#c1122f]/40 cursor-pointer"
-                    >
-                      ✓ Valid Single Pass
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => verifyAndProcessCode("MM-2026-4431")}
-                      className="rounded-full border border-black/[0.06] bg-[#f5f5f7] hover:bg-white px-3 py-1 text-xs font-mono text-[#424245] transition-all hover:border-[#c1122f]/40 cursor-pointer"
-                    >
-                      ✓ All-Access (4 Pax)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => verifyAndProcessCode("MM-2026-USED1")}
-                      className="rounded-full border border-black/[0.06] bg-[#f5f5f7] hover:bg-white px-3 py-1 text-xs font-mono text-amber-800 transition-all hover:border-amber-400 cursor-pointer"
-                    >
-                      ⚠ Already Used
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => verifyAndProcessCode("MM-2026-WRONG")}
-                      className="rounded-full border border-black/[0.06] bg-[#f5f5f7] hover:bg-white px-3 py-1 text-xs font-mono text-orange-800 transition-all hover:border-orange-400 cursor-pointer"
-                    >
-                      ⛔ Wrong Station
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => verifyAndProcessCode("INVALID-CODE-999")}
-                      className="rounded-full border border-black/[0.06] bg-[#f5f5f7] hover:bg-white px-3 py-1 text-xs font-mono text-red-800 transition-all hover:border-red-400 cursor-pointer"
-                    >
-                      ✗ Unregistered Code
-                    </button>
-                  </div>
-                </div>
               </div>
 
-              {/* TICKET VERIFICATION RESULT CARD (Flow 3.0 -> Staff) */}
+              {/* TICKET VERIFICATION RESULT CARD */}
               {lastVerification ? (
                 <div
                   className={`rounded-[28px] p-7 border transition-all shadow-sm ${
@@ -465,7 +413,7 @@ function StaffDashboardContent() {
 
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#86868b]">
-                          Flow 3.0: Ticket Verification Result
+                          Ticket Verification Result
                         </span>
                         <h3 className="text-xl font-semibold tracking-[-0.03em] text-[#1d1d1f] leading-tight">
                           {lastVerification.status === "VERIFIED_VALID"
@@ -563,7 +511,7 @@ function StaffDashboardContent() {
             {/* RIGHT: VISITOR MONITORING INFORMATION & CAPACITY (5 cols) */}
             <div className="lg:col-span-5 space-y-6">
 
-              {/* Real-time Visitor Monitoring Information (Flow 3.0 -> Staff) */}
+              {/* Real-time Visitor Monitoring Information */}
               <div className="rounded-[28px] border border-black/[0.06] bg-white p-7 shadow-[0_1px_12px_rgba(0,0,0,0.04)]">
                 <div className="flex items-center justify-between mb-4">
                   <div>
@@ -571,11 +519,11 @@ function StaffDashboardContent() {
                       Visitor Monitoring
                     </h2>
                     <p className="text-xs text-[#86868b] mt-0.5">
-                      Attraction capacity and flow telemetry (Flow 3.0)
+                      Attraction capacity and flow telemetry
                     </p>
                   </div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#86868b]">
-                    Flow 3.0
+                    Live Feed
                   </span>
                 </div>
 
@@ -739,10 +687,10 @@ function StaffDashboardContent() {
           <div className="pt-6">
             <div className="mb-6">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#c1122f]">
-                Terminal Stations
+                Operations Tools
               </p>
               <h2 className="text-2xl sm:text-3xl font-semibold tracking-[-0.035em] text-[#1d1d1f] mt-1">
-                Sub-Operational Tools
+                Staff Access Modules
               </h2>
             </div>
 
@@ -754,7 +702,7 @@ function StaffDashboardContent() {
                       <QrCode className="h-6 w-6" />
                     </div>
                     <h3 className="text-lg font-semibold text-[#1d1d1f] mb-1.5">
-                      QR Scanner Terminal
+                      QR Scanner
                     </h3>
                     <p className="text-xs text-[#6e6e73] leading-relaxed">
                       Dedicated full-screen camera scanning station, barcode decoding, and audio chime feedback.
