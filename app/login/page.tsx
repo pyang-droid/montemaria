@@ -3,9 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth, db } from "../lib/firebase"; // Clean relative path from app/login/ to root lib/
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { auth } from "../lib/firebase";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import {
+  getLoginDestination,
+  type LoginAudience,
+  type LoginDestination,
+} from "../lib/loginRouting";
+import { getFirebaseErrorCode } from "../lib/firebaseErrors";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,6 +19,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState(""); 
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [loginAudience, setLoginAudience] = useState<LoginAudience>("user");
   
   // State variables for tracking auth status
   const [error, setError] = useState("");
@@ -27,36 +33,30 @@ export default function LoginPage() {
   try {
     // 1. Log the user in using Firebase Auth
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-    const userEmail = user.email ? user.email.toLowerCase() : "";
-
-    // 2. ROLE-BASED REDIRECTION SWITCH (via Firestore user doc and email heuristic)
-    let userRole = "";
+    let destination: LoginDestination;
     try {
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) {
-        userRole = (userDoc.data()?.role || "").toLowerCase();
-      }
-    } catch (docErr) {
-      console.warn("Could not retrieve user role from Firestore:", docErr);
+      destination = await getLoginDestination(userCredential.user);
+    } catch (error) {
+      console.error("Could not verify account type:", error);
+      await signOut(auth);
+      setError("Could not verify your account type. Please try again.");
+      return;
     }
 
-    if (userRole === "tourism" || userRole === "admin" || userEmail.includes("tourism") || userEmail.includes("admin")) {
-      // Tourism Administrator -> send to Tourism Management
-      router.push("/tourismdashboard");
-    } 
-    else if (userRole === "staff" || userEmail.includes("staff")) {
-      // Staff member -> send to Staff Dashboard
-      router.push("/staffdashboard");
-    } 
-    else {
-      // Anyone else is treated as a Tourist/General User -> send to Main Dashboard
-      router.push("/dashboard");
+    if (destination.audience !== loginAudience) {
+      await signOut(auth);
+      setError(
+        loginAudience === "user"
+          ? "This is a Staff/Admin account. Select Staff / Admin to continue."
+          : "This is a User account. Select User to continue."
+      );
+      return;
     }
 
-    router.refresh(); // Refresh the router state to ensure layouts load smoothly
-  } catch (err: any) {
-    console.error(err.code);
+    router.push(destination.path);
+    router.refresh();
+  } catch (err: unknown) {
+    console.error(getFirebaseErrorCode(err));
     setError("Invalid email address or password.");
   } finally {
     setLoading(false);
@@ -83,14 +83,14 @@ export default function LoginPage() {
           
           <h1
             className="text-5xl font-bold text-white mb-4 leading-tight"
-            style={{ fontFamily: "'Playfair Display', serif" }}
+            style={{ fontFamily: "var(--font-montemaria-sans)" }}
           >
             Monte Maria
           </h1>
           
           <p
             className="text-white/80 text-lg max-w-sm leading-relaxed"
-            style={{ fontFamily: "'Cormorant Garamond', serif" }}
+            style={{ fontFamily: "var(--font-montemaria-sans)" }}
           >
             A sacred mountain sanctuary where faith meets breathtaking nature
           </p>
@@ -111,7 +111,7 @@ export default function LoginPage() {
               </div>
               <span
                 className="text-2xl font-bold text-brand-red"
-                style={{ fontFamily: "'Playfair Display', serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
               >
                 Monte Maria
               </span>
@@ -122,17 +122,49 @@ export default function LoginPage() {
           <div className="mb-8">
             <h2
               className="text-3xl font-bold text-gray-900 mb-2"
-              style={{ fontFamily: "'Playfair Display', serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               Welcome Back
             </h2>
             <p
               className="text-gray-500 text-sm"
-              style={{ fontFamily: "'Lato', sans-serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               Sign in to continue your spiritual journey
             </p>
           </div>
+
+          <fieldset className="mb-6">
+            <legend className="mb-2 text-sm font-medium text-gray-700">
+              Sign in as
+            </legend>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                ["user", "Visitor / User"],
+                ["staff-admin", "Staff / Admin"],
+              ] as const).map(([audience, label]) => (
+                <label
+                  key={audience}
+                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-3 text-sm transition ${
+                    loginAudience === audience
+                      ? "border-brand-red bg-rose-50 text-gray-900"
+                      : "border-gray-300 text-gray-600 hover:border-gray-400"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="login-audience"
+                    value={audience}
+                    checked={loginAudience === audience}
+                    onChange={() => setLoginAudience(audience)}
+                    disabled={loading}
+                    className="accent-[#c1122f]"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
           {/* Input Form Fields */}
           <form onSubmit={handleLogin} className="space-y-5">
@@ -148,7 +180,7 @@ export default function LoginPage() {
               <label
                 htmlFor="email"
                 className="block text-sm font-medium text-gray-700 mb-2"
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
               >
                 Email Address
               </label>
@@ -160,7 +192,7 @@ export default function LoginPage() {
                 required
                 disabled={loading}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent transition-all outline-none text-gray-900 disabled:bg-gray-50 disabled:text-gray-400"
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 placeholder="Enter your email address"
               />
             </div>
@@ -170,7 +202,7 @@ export default function LoginPage() {
               <label
                 htmlFor="password"
                 className="block text-sm font-medium text-gray-700 mb-2"
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
               >
                 Password
               </label>
@@ -182,7 +214,7 @@ export default function LoginPage() {
                 required
                 disabled={loading}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent transition-all outline-none text-gray-900 disabled:bg-gray-50 disabled:text-gray-400"
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 placeholder="Enter your password"
               />
             </div>
@@ -199,7 +231,7 @@ export default function LoginPage() {
                 />
                 <span
                   className="text-sm text-gray-600"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   Remember me
                 </span>
@@ -208,7 +240,7 @@ export default function LoginPage() {
                 type="button"
                 disabled={loading}
                 className="text-sm text-brand-red hover:text-brand-red-dark transition-colors disabled:text-gray-400"
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
               >
                 Forgot password?
               </button>
@@ -219,7 +251,7 @@ export default function LoginPage() {
               type="submit"
               disabled={loading}
               className="w-full py-3 bg-brand-red text-gray-700 border-2 border-gray-700 rounded-lg font-medium transition-all shadow-lg shadow-gray-700/20 mt-6 hover:bg-gray-700 hover:text-white hover:shadow-gray-700/30 disabled:bg-gray-100 disabled:border-gray-300 disabled:text-gray-400 disabled:shadow-none"
-              style={{ fontFamily: "'Lato', sans-serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               {loading ? "Verifying Credentials..." : "Sign In"}
             </button>
@@ -231,7 +263,7 @@ export default function LoginPage() {
               <div className="w-full border-t border-gray-200" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500" style={{ fontFamily: "'Lato', sans-serif" }}>
+              <span className="px-4 bg-white text-gray-500" style={{ fontFamily: "var(--font-montemaria-sans)" }}>
                 OR
               </span>
             </div>
@@ -239,7 +271,7 @@ export default function LoginPage() {
 
           {/* Create New Account Navigation Anchor */}
           <div className="text-center">
-            <p className="text-sm text-gray-600" style={{ fontFamily: "'Lato', sans-serif" }}>
+            <p className="text-sm text-gray-600" style={{ fontFamily: "var(--font-montemaria-sans)" }}>
               No account yet?{" "}
               <Link href="/signup" className="text-brand-red font-medium hover:text-brand-red-dark transition-colors">
                 Create an account
@@ -252,7 +284,7 @@ export default function LoginPage() {
             <Link
               href="/"
               className="text-sm text-gray-500 hover:text-gray-700 transition-colors inline-flex items-center gap-1"
-              style={{ fontFamily: "'Lato', sans-serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               <span>←</span> Back to home
             </Link>

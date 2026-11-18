@@ -461,7 +461,7 @@ export default function MonitoringPage() {
               <div>
                 <p
                   className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#c1122f]"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   Tourism Administration
                 </p>
@@ -469,8 +469,7 @@ export default function MonitoringPage() {
                 <h1
                   className="text-4xl font-bold tracking-tight text-gray-900 md:text-5xl"
                   style={{
-                    fontFamily:
-                      "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   Visitor Monitoring
@@ -478,7 +477,7 @@ export default function MonitoringPage() {
 
                 <p
                   className="mt-3 max-w-3xl text-sm leading-6 text-gray-500 md:text-base"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   Monitor attraction occupancy, visitor capacity,
                   QR ticket verification results, and recorded
@@ -533,8 +532,7 @@ export default function MonitoringPage() {
                   <p
                     className={`mt-3 text-3xl font-bold ${card.color}`}
                     style={{
-                      fontFamily:
-                        "'Playfair Display', Georgia, serif",
+                      fontFamily: "var(--font-montemaria-sans)",
                     }}
                   >
                     {card.value}
@@ -559,8 +557,7 @@ export default function MonitoringPage() {
                 <h2
                   className="mt-1 text-2xl font-bold text-gray-900"
                   style={{
-                    fontFamily:
-                      "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   {totalVisitors} / {totalCapacity} Visitors
@@ -594,8 +591,7 @@ export default function MonitoringPage() {
                 <h2
                   className="text-2xl font-bold text-gray-900"
                   style={{
-                    fontFamily:
-                      "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   Attraction Occupancy
@@ -732,8 +728,7 @@ export default function MonitoringPage() {
                         <h3
                           className="text-xl font-bold text-gray-900"
                           style={{
-                            fontFamily:
-                              "'Playfair Display', Georgia, serif",
+                            fontFamily: "var(--font-montemaria-sans)",
                           }}
                         >
                           {attraction.name}
@@ -766,8 +761,7 @@ export default function MonitoringPage() {
                           <span
                             className="text-4xl font-bold text-gray-900"
                             style={{
-                              fontFamily:
-                                "'Playfair Display', Georgia, serif",
+                              fontFamily: "var(--font-montemaria-sans)",
                             }}
                           >
                             {attraction.currentVisitors}
@@ -850,8 +844,7 @@ export default function MonitoringPage() {
             <h2
               className="text-2xl font-bold text-gray-900"
               style={{
-                fontFamily:
-                  "'Playfair Display', Georgia, serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               Visitor Entry & Exit Records
@@ -902,8 +895,7 @@ export default function MonitoringPage() {
                   <p
                     className={`mt-3 text-3xl font-bold ${card.color}`}
                     style={{
-                      fontFamily:
-                        "'Playfair Display', Georgia, serif",
+                      fontFamily: "var(--font-montemaria-sans)",
                     }}
                   >
                     {card.value}
@@ -920,8 +912,7 @@ export default function MonitoringPage() {
                 <h3
                   className="text-2xl font-bold text-gray-900"
                   style={{
-                    fontFamily:
-                      "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   Visitor Records
@@ -1129,8 +1120,7 @@ export default function MonitoringPage() {
                   id="visitor-details-title"
                   className="mt-1 text-2xl font-bold text-gray-900"
                   style={{
-                    fontFamily:
-                      "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   Visitor Details

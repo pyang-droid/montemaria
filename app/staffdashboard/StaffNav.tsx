@@ -44,7 +44,7 @@ export default function StaffNav() {
               <div className="hidden sm:block">
                 <span
                   className="block text-xl font-semibold leading-none tracking-[-0.03em] text-[#1d1d1f]"
-                  style={{ fontFamily: "var(--font-cormorant), Georgia, serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   Montemaria
                 </span>

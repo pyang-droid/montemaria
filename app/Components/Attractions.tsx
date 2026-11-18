@@ -99,7 +99,7 @@ export default function Attractions({
   return (
     <section
       id="attractions"
-      className="bg-black py-16 text-white md:py-20"
+      className="bg-white py-16 text-gray-900 md:py-20"
     >
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
 
@@ -109,16 +109,16 @@ export default function Attractions({
 
         <div className="mb-9 flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
-            <p className="mb-3 text-sm font-medium text-[#a1a1a6]">
+            <p className="mb-3 text-sm font-medium text-gray-500">
               Experiences
             </p>
 
-            <h2 className="max-w-3xl text-4xl font-semibold tracking-[-0.045em] text-white md:text-5xl lg:text-6xl">
+            <h2 className="max-w-3xl text-4xl font-semibold tracking-[-0.045em] text-gray-900 md:text-5xl lg:text-6xl">
               More to experience.
             </h2>
           </div>
 
-          <p className="max-w-md text-sm leading-6 text-[#a1a1a6] md:text-base">
+          <p className="max-w-md text-sm leading-6 text-gray-500 md:text-base">
             Discover experiences that bring together scenery,
             exploration, and memorable moments at Monte Maria.
           </p>
@@ -136,9 +136,10 @@ export default function Attractions({
               onClick={() => selectAttraction(index)}
               className={`rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-300 ${
                 active === index
-                  ? "bg-white text-black"
-                  : "bg-[#1d1d1f] text-[#a1a1a6] hover:text-white"
+                  ? "border-white/90 bg-white/75 text-gray-900 shadow-md backdrop-blur-xl"
+                  : "border-white/80 bg-white/45 text-gray-600 shadow-sm backdrop-blur-xl hover:bg-white/70 hover:text-gray-900"
               }`}
+              style={{ borderWidth: "1px" }}
             >
               {attraction.name}
             </button>
@@ -149,7 +150,7 @@ export default function Attractions({
             MAIN ATTRACTION CARD
         ===================================================== */}
 
-        <div className="overflow-hidden rounded-[32px] bg-[#1d1d1f]">
+        <div className="overflow-hidden rounded-[32px] border border-white/80 bg-white/55 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-2xl">
           <div className="grid lg:grid-cols-[1.15fr_0.85fr]">
 
             {/* ================= IMAGE ================= */}
@@ -185,23 +186,23 @@ export default function Attractions({
 
             <div
               key={current.name}
-              className="flex flex-col justify-center p-7 md:p-10 lg:p-12"
+              className="flex flex-col justify-center border-t border-white/80 bg-white/55 p-7 backdrop-blur-2xl md:p-10 lg:border-l lg:border-t-0 lg:p-12"
             >
               {/* TAGLINE */}
 
-              <p className="text-sm font-medium text-[#a1a1a6]">
+              <p className="text-sm font-medium text-gray-500">
                 {current.tagline}
               </p>
 
               {/* NAME */}
 
-              <h3 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">
+              <h3 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-gray-900 md:text-5xl">
                 {current.name}
               </h3>
 
               {/* DESCRIPTION */}
 
-              <p className="mt-6 text-base leading-7 text-[#a1a1a6]">
+              <p className="mt-6 text-base leading-7 text-gray-600">
                 {current.description}
               </p>
 
@@ -211,7 +212,7 @@ export default function Attractions({
                 {current.highlights.map((highlight) => (
                   <div
                     key={highlight}
-                    className="flex items-start gap-2 text-sm text-[#d2d2d7]"
+                    className="flex items-start gap-2 text-sm text-gray-700"
                   >
                     <span className="mt-[7px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[#c1122f]" />
 
@@ -249,7 +250,7 @@ export default function Attractions({
 
           {/* DOT / PROGRESS CONTAINER */}
 
-          <div className="flex items-center gap-4 rounded-full bg-[#1d1d1f] px-5 py-4">
+          <div className="flex items-center gap-4 rounded-full border border-white/80 bg-white/55 px-5 py-4 shadow-lg backdrop-blur-xl">
             {attractions.map((attraction, index) => (
               <button
                 type="button"
@@ -259,25 +260,25 @@ export default function Attractions({
                 className="group flex h-3 items-center justify-center"
               >
                 {active === index ? (
-                  <span className="relative block h-2 w-14 overflow-hidden rounded-full bg-white/25">
+                  <span className="relative block h-2 w-14 overflow-hidden rounded-full bg-gray-300">
 
                     {/* PROGRESS */}
 
                     {isPlaying ? (
                       <span
                         key={`${active}-${isPlaying}`}
-                        className="absolute inset-y-0 left-0 rounded-full bg-white"
+                        className="absolute inset-y-0 left-0 rounded-full bg-[#c1122f]"
                         style={{
                           animation:
                             "attractionProgress 5s linear forwards",
                         }}
                       />
                     ) : (
-                      <span className="absolute inset-0 rounded-full bg-white" />
+                      <span className="absolute inset-0 rounded-full bg-[#c1122f]" />
                     )}
                   </span>
                 ) : (
-                  <span className="block h-2 w-2 rounded-full bg-white/40 transition-all group-hover:bg-white/70" />
+                  <span className="block h-2 w-2 rounded-full bg-gray-400 transition-all group-hover:bg-gray-600" />
                 )}
               </button>
             ))}
@@ -295,14 +296,14 @@ export default function Attractions({
                 ? "Pause slideshow"
                 : "Play slideshow"
             }
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1d1d1f] text-white transition-all duration-300 hover:bg-[#2c2c2e]"
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-white/80 bg-white/55 text-gray-800 shadow-lg backdrop-blur-xl transition-all duration-300 hover:bg-white/80"
           >
             {isPlaying ? (
               /* PAUSE ICON */
 
               <div className="flex items-center gap-1">
-                <span className="h-4 w-1.5 rounded-sm bg-white" />
-                <span className="h-4 w-1.5 rounded-sm bg-white" />
+                <span className="h-4 w-1.5 rounded-sm bg-gray-800" />
+                <span className="h-4 w-1.5 rounded-sm bg-gray-800" />
               </div>
             ) : (
               /* PLAY ICON */
@@ -312,7 +313,7 @@ export default function Attractions({
                 style={{
                   borderTop: "8px solid transparent",
                   borderBottom: "8px solid transparent",
-                  borderLeft: "12px solid white",
+                  borderLeft: "12px solid #1f2937",
                 }}
               />
             )}

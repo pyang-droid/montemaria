@@ -20,6 +20,16 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Firebase account roles
+
+Public account creation assigns every new account the `visitor` role. Staff and Tourism Admin roles must be provisioned by an administrator; they cannot be selected during sign-up. Deploy the Firestore rules before relying on this restriction:
+
+```bash
+firebase deploy --only firestore:rules --project monte-maria
+```
+
+Review existing `users` documents in Firestore and remove any Staff/Admin roles that were granted through the previous email-based sign-up behavior.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

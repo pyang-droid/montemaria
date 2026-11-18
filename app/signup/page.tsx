@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "../lib/firebase"; // Import Firestore database instance
 import { doc, setDoc } from "firebase/firestore";
+import { getFirebaseErrorCode } from "../lib/firebaseErrors";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -45,38 +46,24 @@ export default function SignUpPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // 4. Clean the email string to check for dashboard keywords
-      const lowerEmail = email.toLowerCase();
-      let assignedRole = "visitor";        // Default role
-      let targetDashboard = "/dashboard";   // Default route (adjust if your visitor route has a different folder name)
-
-      if (lowerEmail.includes("staff")) {
-        assignedRole = "staff";
-        targetDashboard = "/staffdashboard";
-      } 
-      else if (lowerEmail.includes("tourism")) {
-        assignedRole = "tourism";
-        targetDashboard = "/tourismdashboard";
-      }
-
-      // 5. Save the exact role configuration to Firestore
+      // Public sign-up must never grant a privileged role.
       await setDoc(doc(db, "users", user.uid), {
-        email: email,
+        email: user.email ?? email,
         createdAt: new Date().toISOString(),
-        role: assignedRole 
+        role: "visitor",
       });
       
-      setSuccess(`Account registered successfully as ${assignedRole}! Redirecting...`);
+      setSuccess("Account registered successfully as Visitor! Redirecting...");
       
-      // 6. Execute the dynamic routing sequence
       setTimeout(() => {
-        router.push(targetDashboard); 
+        router.push("/dashboard");
       }, 2000);
 
-    } catch (err: any) {
-      console.error("Firebase SignUp Error:", err.code);
+    } catch (err: unknown) {
+      const errorCode = getFirebaseErrorCode(err);
+      console.error("Firebase SignUp Error:", errorCode);
 
-      switch (err.code) {
+      switch (errorCode) {
         case "auth/email-already-in-use":
           setError("This email address is already registered to an account.");
           break;
@@ -114,14 +101,14 @@ export default function SignUpPage() {
           
           <h1
             className="text-5xl font-bold text-white mb-4 leading-tight"
-            style={{ fontFamily: "'Playfair Display', serif" }}
+            style={{ fontFamily: "var(--font-montemaria-sans)" }}
           >
             Monte Maria
           </h1>
           
           <p
             className="text-white/80 text-lg max-w-sm leading-relaxed"
-            style={{ fontFamily: "'Cormorant Garamond', serif" }}
+            style={{ fontFamily: "var(--font-montemaria-sans)" }}
           >
             Join our community sanctuary and stay connected with faith and nature
           </p>
@@ -142,7 +129,7 @@ export default function SignUpPage() {
               </div>
               <span
                 className="text-2xl font-bold text-brand-red"
-                style={{ fontFamily: "'Playfair Display', serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
               >
                 Monte Maria
               </span>
@@ -153,13 +140,13 @@ export default function SignUpPage() {
           <div className="mb-8">
             <h2
               className="text-3xl font-bold text-gray-900 mb-2"
-              style={{ fontFamily: "'Playfair Display', serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               Create Account
             </h2>
             <p
               className="text-gray-500 text-sm"
-              style={{ fontFamily: "'Lato', sans-serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               Begin your experience with our spiritual mapping sanctuary
             </p>
@@ -186,7 +173,7 @@ export default function SignUpPage() {
               <label
                 htmlFor="email"
                 className="block text-sm font-medium text-gray-700 mb-2"
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
               >
                 Email Address
               </label>
@@ -198,7 +185,7 @@ export default function SignUpPage() {
                 required
                 disabled={loading}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent transition-all outline-none text-gray-900 disabled:bg-gray-50 disabled:text-gray-400"
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 placeholder="Enter your email address"
               />
             </div>
@@ -208,7 +195,7 @@ export default function SignUpPage() {
               <label
                 htmlFor="password"
                 className="block text-sm font-medium text-gray-700 mb-2"
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
               >
                 Password
               </label>
@@ -220,7 +207,7 @@ export default function SignUpPage() {
                 required
                 disabled={loading}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent transition-all outline-none text-gray-900 disabled:bg-gray-50 disabled:text-gray-400"
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 placeholder="Create a password"
               />
             </div>
@@ -230,7 +217,7 @@ export default function SignUpPage() {
               <label
                 htmlFor="confirmPassword"
                 className="block text-sm font-medium text-gray-700 mb-2"
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
               >
                 Confirm Password
               </label>
@@ -242,7 +229,7 @@ export default function SignUpPage() {
                 required
                 disabled={loading}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent transition-all outline-none text-gray-900 disabled:bg-gray-50 disabled:text-gray-400"
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 placeholder="Confirm your password"
               />
             </div>
@@ -259,7 +246,7 @@ export default function SignUpPage() {
                 />
                 <span
                   className="text-sm text-gray-600 leading-tight"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   I certify that I agree to the{" "}
                   <button type="button" className="text-brand-red hover:underline font-medium">Terms of Service</button>
@@ -274,7 +261,7 @@ export default function SignUpPage() {
               type="submit"
               disabled={loading}
               className="w-full py-3 bg-brand-red text-gray-700 border-2 border-gray-700 rounded-lg font-medium transition-all shadow-lg shadow-gray-700/20 mt-4 hover:bg-gray-700 hover:text-white hover:shadow-gray-700/30 disabled:bg-100 disabled:border-gray-300 disabled:text-gray-400"
-              style={{ fontFamily: "'Lato', sans-serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               {loading ? "Creating System Record..." : "Register Account"}
             </button>
@@ -286,7 +273,7 @@ export default function SignUpPage() {
               <div className="w-full border-t border-gray-200" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500" style={{ fontFamily: "'Lato', sans-serif" }}>
+              <span className="px-4 bg-white text-gray-500" style={{ fontFamily: "var(--font-montemaria-sans)" }}>
                 OR
               </span>
             </div>
@@ -294,7 +281,7 @@ export default function SignUpPage() {
 
           {/* Return Anchor back to Existing User Login Layout */}
           <div className="text-center">
-            <p className="text-sm text-gray-600" style={{ fontFamily: "'Lato', sans-serif" }}>
+            <p className="text-sm text-gray-600" style={{ fontFamily: "var(--font-montemaria-sans)" }}>
               Already have an account?{" "}
               <Link href="/login" className="text-brand-red font-medium hover:text-brand-red-dark transition-colors">
                 Sign In

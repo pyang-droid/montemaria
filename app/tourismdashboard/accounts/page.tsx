@@ -271,7 +271,7 @@ export default function AccountsPage() {
                 <p
                   className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#c1122f]"
                   style={{
-                    fontFamily: "'Lato', sans-serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   Tourism Administration
@@ -280,8 +280,7 @@ export default function AccountsPage() {
                 <h1
                   className="text-4xl font-bold tracking-tight text-gray-900 md:text-5xl"
                   style={{
-                    fontFamily:
-                      "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   Manage Accounts
@@ -290,7 +289,7 @@ export default function AccountsPage() {
                 <p
                   className="mt-3 max-w-3xl text-sm leading-6 text-gray-500 md:text-base"
                   style={{
-                    fontFamily: "'Lato', sans-serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   View registered user accounts, monitor
@@ -345,8 +344,7 @@ export default function AccountsPage() {
                   <p
                     className={`mt-3 text-3xl font-bold ${card.color}`}
                     style={{
-                      fontFamily:
-                        "'Playfair Display', Georgia, serif",
+                      fontFamily: "var(--font-montemaria-sans)",
                     }}
                   >
                     {card.value}
@@ -368,8 +366,7 @@ export default function AccountsPage() {
                 <h2
                   className="text-2xl font-bold text-gray-900"
                   style={{
-                    fontFamily:
-                      "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   User Accounts
@@ -608,8 +605,7 @@ export default function AccountsPage() {
                   id="account-details-title"
                   className="mt-1 text-2xl font-bold text-gray-900"
                   style={{
-                    fontFamily:
-                      "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   Account Details
@@ -768,8 +764,7 @@ export default function AccountsPage() {
               id="confirm-status-title"
               className="text-2xl font-bold text-gray-900"
               style={{
-                fontFamily:
-                  "'Playfair Display', Georgia, serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               {pendingUser.status === "Active"

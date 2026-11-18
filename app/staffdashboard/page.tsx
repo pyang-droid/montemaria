@@ -234,7 +234,7 @@ function StaffDashboardContent() {
 
                 <h2
                   className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] text-white mb-2"
-                  style={{ fontFamily: "var(--font-cormorant), Georgia, serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   {currentAttraction.name}
                 </h2>

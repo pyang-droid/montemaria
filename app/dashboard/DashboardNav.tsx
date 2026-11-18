@@ -135,7 +135,7 @@ export default function DashboardNav() {
                       : "text-gray-700 hover:text-brand-red after:w-0 hover:after:w-full after:bg-brand-red"
                   } after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:h-[2px] after:transition-all after:duration-300`}
                   style={{
-                    fontFamily: "'Lato', sans-serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   {link.label}
@@ -167,7 +167,7 @@ export default function DashboardNav() {
                     : "bg-white border-gray-300 hover:bg-gray-50"
                 }`}
                 style={{
-                  fontFamily: "'Lato', sans-serif",
+                  fontFamily: "var(--font-montemaria-sans)",
                 }}
               >
                 <span>👤</span>
@@ -203,7 +203,7 @@ export default function DashboardNav() {
                     onClick={() => setProfileOpen(false)}
                     className="flex items-center gap-3 px-5 py-4 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                     style={{
-                      fontFamily: "'Lato', sans-serif",
+                      fontFamily: "var(--font-montemaria-sans)",
                     }}
                   >
                     <svg
@@ -233,7 +233,7 @@ export default function DashboardNav() {
                     onClick={handleLogoutClick}
                     className="w-full flex items-center gap-3 px-5 py-4 text-sm text-red-600 hover:bg-red-50 transition-colors text-left"
                     style={{
-                      fontFamily: "'Lato', sans-serif",
+                      fontFamily: "var(--font-montemaria-sans)",
                     }}
                   >
                     <svg
@@ -323,7 +323,7 @@ export default function DashboardNav() {
                     : "border-transparent text-black hover:border-gray-300"
                 }`}
                 style={{
-                  fontFamily: "'Playfair Display', serif",
+                  fontFamily: "var(--font-montemaria-sans)",
                 }}
               >
                 {link.label}
@@ -337,7 +337,7 @@ export default function DashboardNav() {
               onClick={() => setMobileOpen(false)}
               className="w-full py-3 border border-gray-300 rounded-full text-sm hover:bg-gray-50 transition-all text-center"
               style={{
-                fontFamily: "'Lato', sans-serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               👤 Profile
@@ -350,7 +350,7 @@ export default function DashboardNav() {
               onClick={handleLogoutClick}
               className="w-full py-3 border border-red-200 text-red-600 rounded-full text-sm hover:bg-red-50 transition-all"
               style={{
-                fontFamily: "'Lato', sans-serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               Logout
@@ -402,7 +402,7 @@ export default function DashboardNav() {
               id="logout-title"
               className="text-2xl font-bold text-gray-900 mb-3"
               style={{
-                fontFamily: "'Playfair Display', serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               Confirm Logout
@@ -413,7 +413,7 @@ export default function DashboardNav() {
             <p
               className="text-gray-500 text-sm leading-6 mb-7"
               style={{
-                fontFamily: "'Lato', sans-serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               Are you sure you want to log out

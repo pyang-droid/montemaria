@@ -223,7 +223,7 @@ export default function StaffAssignmentsPage() {
               <h1
                 className="text-4xl font-bold tracking-tight text-gray-900 md:text-5xl"
                 style={{
-                  fontFamily: "'Playfair Display', Georgia, serif",
+                  fontFamily: "var(--font-montemaria-sans)",
                 }}
               >
                 Staff Assignments
@@ -265,7 +265,7 @@ export default function StaffAssignmentsPage() {
                 <p
                   className="mt-3 text-3xl font-bold text-gray-900"
                   style={{
-                    fontFamily: "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   {card.value}
@@ -285,7 +285,7 @@ export default function StaffAssignmentsPage() {
                 <h2
                   className="text-2xl font-bold text-gray-900"
                   style={{
-                    fontFamily: "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   Staff Assignment Records
@@ -496,7 +496,7 @@ export default function StaffAssignmentsPage() {
                   id="assignment-dialog-title"
                   className="mt-1 text-2xl font-bold text-gray-900"
                   style={{
-                    fontFamily: "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   {selectedStaff?.attraction
@@ -612,7 +612,7 @@ export default function StaffAssignmentsPage() {
               id="remove-assignment-title"
               className="text-2xl font-bold text-gray-900"
               style={{
-                fontFamily: "'Playfair Display', Georgia, serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               Remove Assignment?

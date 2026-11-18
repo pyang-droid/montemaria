@@ -2,9 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../lib/firebase";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { auth } from "../lib/firebase";
+import {
+  getLoginDestination,
+  type LoginAudience,
+  type LoginDestination,
+} from "../lib/loginRouting";
+import { getFirebaseErrorCode } from "../lib/firebaseErrors";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -22,6 +27,7 @@ export default function LoginModal({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [loginAudience, setLoginAudience] = useState<LoginAudience>("user");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -40,32 +46,31 @@ export default function LoginModal({
         password
       );
 
-      const userEmail =
-        userCredential.user.email?.toLowerCase() || "";
-
-      let userRole = "";
+      let destination: LoginDestination;
       try {
-        const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
-        if (userDoc.exists()) {
-          userRole = (userDoc.data()?.role || "").toLowerCase();
-        }
-      } catch (docErr) {
-        console.warn("Could not retrieve user role from Firestore:", docErr);
+        destination = await getLoginDestination(userCredential.user);
+      } catch (error) {
+        console.error("Could not verify account type:", error);
+        await signOut(auth);
+        setError("Could not verify your account type. Please try again.");
+        return;
+      }
+
+      if (destination.audience !== loginAudience) {
+        await signOut(auth);
+        setError(
+          loginAudience === "user"
+            ? "This is a Staff/Admin account. Select Staff / Admin to continue."
+            : "This is a User account. Select User to continue."
+        );
+        return;
       }
 
       onClose();
-
-      if (userRole === "tourism" || userRole === "admin" || userEmail.includes("tourism") || userEmail.includes("admin")) {
-        router.push("/tourismdashboard");
-      } else if (userRole === "staff" || userEmail.includes("staff")) {
-        router.push("/staffdashboard");
-      } else {
-        router.push("/dashboard");
-      }
-
+      router.push(destination.path);
       router.refresh();
-    } catch (err: any) {
-      console.error(err.code);
+    } catch (err: unknown) {
+      console.error(getFirebaseErrorCode(err));
       setError("Invalid email address or password.");
     } finally {
       setLoading(false);
@@ -106,7 +111,7 @@ export default function LoginModal({
           <h2
             className="mb-1 text-2xl font-bold text-gray-900"
             style={{
-              fontFamily: "'Playfair Display', serif",
+              fontFamily: "var(--font-montemaria-sans)",
             }}
           >
             Welcome Back
@@ -115,12 +120,44 @@ export default function LoginModal({
           <p
             className="text-sm text-gray-500"
             style={{
-              fontFamily: "'Lato', sans-serif",
+              fontFamily: "var(--font-montemaria-sans)",
             }}
           >
             Sign in to continue your spiritual journey
           </p>
         </div>
+
+        <fieldset className="mb-5">
+          <legend className="mb-2 text-sm font-medium text-gray-700">
+            Sign in as
+          </legend>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              ["user", "Visitor / User"],
+              ["staff-admin", "Staff / Admin"],
+            ] as const).map(([audience, label]) => (
+              <label
+                key={audience}
+                className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2.5 text-xs transition ${
+                  loginAudience === audience
+                    ? "border-gray-900 bg-gray-50 text-gray-900"
+                    : "border-gray-300 text-gray-600 hover:border-gray-400"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="modal-login-audience"
+                  value={audience}
+                  checked={loginAudience === audience}
+                  onChange={() => setLoginAudience(audience)}
+                  disabled={loading}
+                  className="accent-gray-900"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         {/* FORM */}
         <form onSubmit={handleLogin} className="space-y-4">

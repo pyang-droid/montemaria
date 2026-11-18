@@ -83,7 +83,7 @@ export default function AttractionCard({
         <h3
           className="text-lg font-bold text-gray-900 mb-2"
           style={{
-            fontFamily: "'Playfair Display', serif",
+            fontFamily: "var(--font-montemaria-sans)",
           }}
         >
           {attraction.name}
@@ -91,7 +91,7 @@ export default function AttractionCard({
 
         <p
           className="text-gray-600 text-xs leading-relaxed line-clamp-2 mb-4"
-          style={{ fontFamily: "'Lato', sans-serif" }}
+          style={{ fontFamily: "var(--font-montemaria-sans)" }}
         >
           {attraction.description}
         </p>

@@ -81,7 +81,7 @@ export default function AttractionDetailsModal({
               id="attraction-details-title"
               className="text-3xl md:text-4xl font-bold text-white"
               style={{
-                fontFamily: "'Playfair Display', serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               {attraction.name}
@@ -90,7 +90,7 @@ export default function AttractionDetailsModal({
             <p
               className="text-white/85 text-sm mt-2"
               style={{
-                fontFamily: "'Lato', sans-serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               {attraction.tagline}
@@ -108,7 +108,7 @@ export default function AttractionDetailsModal({
             <h3
               className="text-xl font-bold text-gray-900 mb-3"
               style={{
-                fontFamily: "'Playfair Display', serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               About This Attraction
@@ -117,7 +117,7 @@ export default function AttractionDetailsModal({
             <p
               className="text-gray-600 text-sm leading-7"
               style={{
-                fontFamily: "'Lato', sans-serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               {attraction.fullDescription}
@@ -131,7 +131,7 @@ export default function AttractionDetailsModal({
             <h3
               className="text-xl font-bold text-gray-900 mb-4"
               style={{
-                fontFamily: "'Playfair Display', serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               Highlights
@@ -176,8 +176,7 @@ export default function AttractionDetailsModal({
               <h3
                 className="text-lg font-bold text-green-900 mb-2"
                 style={{
-                  fontFamily:
-                    "'Playfair Display', serif",
+                  fontFamily: "var(--font-montemaria-sans)",
                 }}
               >
                 Your Access Code
@@ -192,8 +191,7 @@ export default function AttractionDetailsModal({
                 <p
                   className="text-2xl md:text-3xl font-bold text-center text-gray-700 tracking-wider break-all"
                   style={{
-                    fontFamily:
-                      "'Courier New', monospace",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   {generatedCode}

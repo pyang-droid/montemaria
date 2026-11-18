@@ -27,8 +27,7 @@ export default function Hero() {
           <p
             className="whitespace-nowrap text-sm font-semibold tracking-[0.02em] text-white drop-shadow-lg md:text-base"
             style={{
-              fontFamily:
-                "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+              fontFamily: "var(--font-montemaria-sans)",
             }}
           >
             Pagkilatan • Batangas City • Philippines
@@ -40,7 +39,7 @@ export default function Hero() {
           <h1
             className="px-6 text-[clamp(5rem,11vw,10rem)] font-semibold leading-[0.86] tracking-[-0.045em] text-white drop-shadow-sm"
             style={{
-              fontFamily: "var(--font-cormorant), Georgia, serif",
+              fontFamily: "var(--font-montemaria-sans)",
             }}
           >
             Montemaria
@@ -57,8 +56,7 @@ export default function Hero() {
             onClick={() => scrollTo("#about")}
             className="min-w-[175px] rounded-full bg-white px-8 py-3.5 text-base font-semibold text-[#1d1d1f] shadow-lg transition-all duration-300 hover:scale-[1.02] hover:bg-[#f5f5f7]"
             style={{
-              fontFamily:
-                "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+              fontFamily: "var(--font-montemaria-sans)",
             }}
           >
             Discover
@@ -70,8 +68,7 @@ export default function Hero() {
             onClick={() => scrollTo("#attractions")}
             className="min-w-[230px] rounded-full bg-[#c1122f] px-8 py-3.5 text-base font-semibold text-white shadow-lg transition-all duration-300 hover:scale-[1.02] hover:bg-[#a90f29]"
             style={{
-              fontFamily:
-                "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+              fontFamily: "var(--font-montemaria-sans)",
             }}
           >
             Explore attractions
@@ -87,8 +84,7 @@ export default function Hero() {
           onClick={() => scrollTo("#about")}
           className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap text-sm font-medium text-white/75 transition hover:text-white"
           style={{
-            fontFamily:
-              "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            fontFamily: "var(--font-montemaria-sans)",
           }}
         >
           Scroll to discover ↓

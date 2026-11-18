@@ -98,7 +98,7 @@ export default function PaymentModal({
             <h2
               className="text-2xl font-bold text-gray-900 mb-2"
               style={{
-                fontFamily: "'Playfair Display', serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               Complete Your Payment

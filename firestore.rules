@@ -1,0 +1,31 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function hasAdminRole() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+          in ['admin', 'tourism'];
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || hasAdminRole();
+      allow create: if (
+        isOwner(userId)
+        && request.resource.data.keys().hasOnly(['email', 'createdAt', 'role'])
+        && request.resource.data.keys().hasAll(['email', 'createdAt', 'role'])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == 'visitor'
+      ) || hasAdminRole();
+      allow update: if hasAdminRole()
+        || (isOwner(userId)
+          && request.resource.data.role == resource.data.role);
+      allow delete: if hasAdminRole();
+    }
+  }
+}

@@ -67,13 +67,13 @@ export default function ProfilePage() {
           <div className="mb-8">
             <h1
               className="text-4xl font-bold text-gray-900 mb-3"
-              style={{ fontFamily: "'Playfair Display', serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               My <span className="text-brand-red italic">Profile</span>
             </h1>
             <p
               className="text-gray-600"
-              style={{ fontFamily: "'Lato', sans-serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               Manage your account settings
             </p>
@@ -83,7 +83,7 @@ export default function ProfilePage() {
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 mb-6">
             <h2
               className="text-2xl font-bold text-gray-900 mb-6"
-              style={{ fontFamily: "'Playfair Display', serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               Profile Picture
             </h2>
@@ -105,7 +105,7 @@ export default function ProfilePage() {
                 <label
                   htmlFor="profile-upload"
                   className="px-6 py-3 bg-brand-red text-white rounded-lg font-medium hover:bg-brand-red-dark transition-all cursor-pointer inline-block"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   Upload Photo
                 </label>
@@ -118,7 +118,7 @@ export default function ProfilePage() {
                 />
                 <p
                   className="text-sm text-gray-500 mt-2"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   JPG, PNG or GIF. Max size 5MB.
                 </p>
@@ -130,7 +130,7 @@ export default function ProfilePage() {
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 mb-6">
             <h2
               className="text-2xl font-bold text-gray-900 mb-6"
-              style={{ fontFamily: "'Playfair Display', serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               Personal Information
             </h2>
@@ -139,7 +139,7 @@ export default function ProfilePage() {
               <div>
                 <label
                   className="block text-sm font-medium text-gray-700 mb-2"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   Username
                 </label>
@@ -149,7 +149,7 @@ export default function ProfilePage() {
                   value={formData.username}
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 />
               </div>
 
@@ -158,7 +158,7 @@ export default function ProfilePage() {
                 <div>
                   <label
                     className="block text-sm font-medium text-gray-700 mb-2"
-                    style={{ fontFamily: "'Lato', sans-serif" }}
+                    style={{ fontFamily: "var(--font-montemaria-sans)" }}
                   >
                     First Name
                   </label>
@@ -168,13 +168,13 @@ export default function ProfilePage() {
                     value={formData.firstName}
                     onChange={handleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none"
-                    style={{ fontFamily: "'Lato', sans-serif" }}
+                    style={{ fontFamily: "var(--font-montemaria-sans)" }}
                   />
                 </div>
                 <div>
                   <label
                     className="block text-sm font-medium text-gray-700 mb-2"
-                    style={{ fontFamily: "'Lato', sans-serif" }}
+                    style={{ fontFamily: "var(--font-montemaria-sans)" }}
                   >
                     Last Name
                   </label>
@@ -184,7 +184,7 @@ export default function ProfilePage() {
                     value={formData.lastName}
                     onChange={handleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none"
-                    style={{ fontFamily: "'Lato', sans-serif" }}
+                    style={{ fontFamily: "var(--font-montemaria-sans)" }}
                   />
                 </div>
               </div>
@@ -193,7 +193,7 @@ export default function ProfilePage() {
               <div>
                 <label
                   className="block text-sm font-medium text-gray-700 mb-2"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   Mobile Number
                 </label>
@@ -203,7 +203,7 @@ export default function ProfilePage() {
                   value={formData.mobileNumber}
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 />
               </div>
 
@@ -211,7 +211,7 @@ export default function ProfilePage() {
               <div>
                 <label
                   className="block text-sm font-medium text-gray-700 mb-2"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   Email Address
                 </label>
@@ -221,14 +221,14 @@ export default function ProfilePage() {
                   value={formData.email}
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 />
               </div>
 
               <button
                 type="submit"
                 className="w-full py-3 bg-brand-red text-white rounded-lg font-medium hover:bg-brand-red-dark transition-all"
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
               >
                 Save Changes
               </button>
@@ -239,7 +239,7 @@ export default function ProfilePage() {
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
             <h2
               className="text-2xl font-bold text-gray-900 mb-6"
-              style={{ fontFamily: "'Playfair Display', serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               Change Password
             </h2>
@@ -247,7 +247,7 @@ export default function ProfilePage() {
               <div>
                 <label
                   className="block text-sm font-medium text-gray-700 mb-2"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   Current Password
                 </label>
@@ -257,13 +257,13 @@ export default function ProfilePage() {
                   value={formData.currentPassword}
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 />
               </div>
               <div>
                 <label
                   className="block text-sm font-medium text-gray-700 mb-2"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   New Password
                 </label>
@@ -273,13 +273,13 @@ export default function ProfilePage() {
                   value={formData.newPassword}
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 />
               </div>
               <div>
                 <label
                   className="block text-sm font-medium text-gray-700 mb-2"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
                   Confirm New Password
                 </label>
@@ -289,13 +289,13 @@ export default function ProfilePage() {
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none"
-                  style={{ fontFamily: "'Lato', sans-serif" }}
+                  style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 />
               </div>
               <button
                 type="submit"
                 className="w-full py-3 bg-brand-red text-white rounded-lg font-medium hover:bg-brand-red-dark transition-all"
-                style={{ fontFamily: "'Lato', sans-serif" }}
+                style={{ fontFamily: "var(--font-montemaria-sans)" }}
               >
                 Update Password
               </button>

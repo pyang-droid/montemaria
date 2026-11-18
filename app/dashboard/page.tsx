@@ -311,8 +311,7 @@ export default function DashboardPage() {
             <h1
               className="text-4xl font-bold text-gray-900 mb-3"
               style={{
-                fontFamily:
-                  "'Playfair Display', serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               Monte Maria{" "}
@@ -324,7 +323,7 @@ export default function DashboardPage() {
             <p
               className="text-gray-600 text-lg"
               style={{
-                fontFamily: "'Lato', sans-serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               Explore our sacred sites and

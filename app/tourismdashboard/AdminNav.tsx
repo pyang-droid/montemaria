@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import {
@@ -67,7 +67,6 @@ const navLinks = [
 
 export default function AdminNav() {
   const pathname = usePathname();
-  const router = useRouter();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -93,8 +92,6 @@ export default function AdminNav() {
     try {
       await signOut(auth);
       setMobileOpen(false);
-      router.replace("/");
-      router.refresh();
     } catch (error) {
       console.error("Logout failed:", error);
       setLogoutError(
@@ -123,7 +120,7 @@ export default function AdminNav() {
             <p
               className="text-xl font-bold text-[#344054]"
               style={{
-                fontFamily: "'Playfair Display', Georgia, serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               Montemaria
@@ -185,8 +182,7 @@ export default function AdminNav() {
               <p
                 className="text-xl font-bold text-[#344054]"
                 style={{
-                  fontFamily:
-                    "'Playfair Display', Georgia, serif",
+                  fontFamily: "var(--font-montemaria-sans)",
                 }}
               >
                 Montemaria
@@ -195,7 +191,7 @@ export default function AdminNav() {
               <p
                 className="mt-1 text-[10px] font-medium uppercase tracking-[0.15em] text-gray-400"
                 style={{
-                  fontFamily: "'Lato', sans-serif",
+                  fontFamily: "var(--font-montemaria-sans)",
                 }}
               >
                 Tourism Office

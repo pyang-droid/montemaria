@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
+import { getFirebaseErrorCode } from "../lib/firebaseErrors";
 
 interface SignUpModalProps {
   isOpen: boolean;
@@ -59,35 +60,24 @@ export default function SignUpModal({
         );
 
       const user = userCredential.user;
-      const lowerEmail = email.toLowerCase();
-
-      let assignedRole = "visitor";
-      let targetDashboard = "/dashboard";
-
-      if (lowerEmail.includes("staff")) {
-        assignedRole = "staff";
-        targetDashboard = "/staffdashboard";
-      } else if (lowerEmail.includes("tourism")) {
-        assignedRole = "tourism";
-        targetDashboard = "/tourismdashboard";
-      }
 
       await setDoc(doc(db, "users", user.uid), {
-        email: email,
+        email: user.email ?? email,
         createdAt: new Date().toISOString(),
-        role: assignedRole,
+        role: "visitor",
       });
 
       setSuccess("Account created successfully!");
 
       setTimeout(() => {
         onClose();
-        router.push(targetDashboard);
+        router.push("/dashboard");
       }, 1500);
-    } catch (err: any) {
-      console.error("Firebase SignUp Error:", err.code);
+    } catch (err: unknown) {
+      const errorCode = getFirebaseErrorCode(err);
+      console.error("Firebase SignUp Error:", errorCode);
 
-      switch (err.code) {
+      switch (errorCode) {
         case "auth/email-already-in-use":
           setError(
             "This email address is already registered."
@@ -148,7 +138,7 @@ export default function SignUpModal({
           <h2
             className="mb-1 text-2xl font-bold text-gray-900"
             style={{
-              fontFamily: "'Playfair Display', serif",
+              fontFamily: "var(--font-montemaria-sans)",
             }}
           >
             Create Account
@@ -157,7 +147,7 @@ export default function SignUpModal({
           <p
             className="text-sm text-gray-500"
             style={{
-              fontFamily: "'Lato', sans-serif",
+              fontFamily: "var(--font-montemaria-sans)",
             }}
           >
             Begin your experience with Monte Maria

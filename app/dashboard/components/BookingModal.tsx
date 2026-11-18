@@ -306,8 +306,7 @@ export default function BookingModal({
               id="booking-modal-title"
               className="text-2xl font-bold text-gray-900 mb-2"
               style={{
-                fontFamily:
-                  "'Playfair Display', serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               Book {attraction.name}
@@ -363,8 +362,7 @@ export default function BookingModal({
                     <h3
                       className="text-lg font-bold text-gray-900"
                       style={{
-                        fontFamily:
-                          "'Playfair Display', serif",
+                        fontFamily: "var(--font-montemaria-sans)",
                       }}
                     >
                       {formatDate(bookingDate)}

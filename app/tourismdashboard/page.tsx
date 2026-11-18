@@ -232,7 +232,7 @@ export default function TourismDashboardPage() {
               <p
                 className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#c1122f]"
                 style={{
-                  fontFamily: "'Lato', sans-serif",
+                  fontFamily: "var(--font-montemaria-sans)",
                 }}
               >
                 Tourism Administration
@@ -241,8 +241,7 @@ export default function TourismDashboardPage() {
               <h1
                 className="text-4xl font-bold tracking-tight text-gray-900 md:text-5xl"
                 style={{
-                  fontFamily:
-                    "'Playfair Display', Georgia, serif",
+                  fontFamily: "var(--font-montemaria-sans)",
                 }}
               >
                 Dashboard Overview
@@ -251,7 +250,7 @@ export default function TourismDashboardPage() {
               <p
                 className="mt-3 max-w-2xl text-sm leading-6 text-gray-500 md:text-base"
                 style={{
-                  fontFamily: "'Lato', sans-serif",
+                  fontFamily: "var(--font-montemaria-sans)",
                 }}
               >
                 Monitor visitor bookings, payment transactions,
@@ -288,8 +287,7 @@ export default function TourismDashboardPage() {
                     <p
                       className="mt-4 text-4xl font-bold text-gray-900"
                       style={{
-                        fontFamily:
-                          "'Playfair Display', Georgia, serif",
+                        fontFamily: "var(--font-montemaria-sans)",
                       }}
                     >
                       {card.value}
@@ -317,7 +315,7 @@ export default function TourismDashboardPage() {
                   <p
                     className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#c1122f]"
                     style={{
-                      fontFamily: "'Lato', sans-serif",
+                      fontFamily: "var(--font-montemaria-sans)",
                     }}
                   >
                     Visitor Monitoring
@@ -326,8 +324,7 @@ export default function TourismDashboardPage() {
                   <h2
                     className="mt-1 text-2xl font-bold text-gray-900"
                     style={{
-                      fontFamily:
-                        "'Playfair Display', Georgia, serif",
+                      fontFamily: "var(--font-montemaria-sans)",
                     }}
                   >
                     Attraction Visitor Monitoring
@@ -420,8 +417,7 @@ export default function TourismDashboardPage() {
                             <h3
                               className="font-bold text-gray-900"
                               style={{
-                                fontFamily:
-                                  "'Playfair Display', Georgia, serif",
+                                fontFamily: "var(--font-montemaria-sans)",
                               }}
                             >
                               {attraction.name}
@@ -471,8 +467,7 @@ export default function TourismDashboardPage() {
                 <h2
                   className="mt-1 text-2xl font-bold text-gray-900"
                   style={{
-                    fontFamily:
-                      "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   Quick Access
@@ -516,8 +511,7 @@ export default function TourismDashboardPage() {
                 <h2
                   className="mt-1 text-2xl font-bold text-gray-900"
                   style={{
-                    fontFamily:
-                      "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   Recent Bookings & Payments

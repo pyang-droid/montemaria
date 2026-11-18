@@ -376,7 +376,7 @@ export default function AttractionsPage() {
           <div className="mb-8 border-b border-gray-200 pb-7">
             <p
               className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#c1122f]"
-              style={{ fontFamily: "'Lato', sans-serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               Tourism Administration
             </p>
@@ -384,7 +384,7 @@ export default function AttractionsPage() {
             <h1
               className="text-4xl font-bold tracking-tight text-gray-900 md:text-5xl"
               style={{
-                fontFamily: "'Playfair Display', Georgia, serif",
+                fontFamily: "var(--font-montemaria-sans)",
               }}
             >
               Manage Attractions
@@ -392,7 +392,7 @@ export default function AttractionsPage() {
 
             <p
               className="mt-3 max-w-3xl text-sm leading-6 text-gray-500 md:text-base"
-              style={{ fontFamily: "'Lato', sans-serif" }}
+              style={{ fontFamily: "var(--font-montemaria-sans)" }}
             >
               Manage attraction information, visitor capacity,
               operating schedules, entrance fees, and availability.
@@ -448,7 +448,7 @@ export default function AttractionsPage() {
                   <p
                     className={`mt-3 text-3xl font-bold ${card.color}`}
                     style={{
-                      fontFamily: "'Playfair Display', Georgia, serif",
+                      fontFamily: "var(--font-montemaria-sans)",
                     }}
                   >
                     {card.value}
@@ -469,7 +469,7 @@ export default function AttractionsPage() {
                 <h2
                   className="text-2xl font-bold text-gray-900"
                   style={{
-                    fontFamily: "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   Attraction Information
@@ -567,8 +567,7 @@ export default function AttractionsPage() {
                         <p
                           className="font-bold text-gray-900"
                           style={{
-                            fontFamily:
-                              "'Playfair Display', Georgia, serif",
+                            fontFamily: "var(--font-montemaria-sans)",
                           }}
                         >
                           {attraction.name}
@@ -711,7 +710,7 @@ export default function AttractionsPage() {
                   id="attraction-modal-title"
                   className="mt-1 text-2xl font-bold text-gray-900"
                   style={{
-                    fontFamily: "'Playfair Display', Georgia, serif",
+                    fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
                   {modalMode === "view"
