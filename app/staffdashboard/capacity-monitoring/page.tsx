@@ -74,7 +74,7 @@ function CapacityMonitoringContent() {
                 Capacity &amp; <span className="text-[#c1122f]">Crowd Monitoring</span>
               </h1>
               <p className="text-sm text-[#6e6e73] mt-2 max-w-xl">
-                Real-time headcounts, capacity regulation, and multi-zone safety thresholds across Monte Maria sanctuary grounds.
+                Real-time headcounts and capacity regulation. Temporary preview limits are labeled until verified by an administrator.
               </p>
             </div>
 
@@ -104,6 +104,11 @@ function CapacityMonitoringContent() {
                     / {occupancyAvailable ? totalMax : "—"} Max Permitted Capacity
                   </span>
                 </div>
+                {attractions.some((attraction) => attraction.capacityIsPreview) && (
+                  <p className="mb-3 text-xs font-medium text-amber-700">
+                    Total uses temporary preview capacities.
+                  </p>
+                )}
               </div>
 
               <div className="w-full bg-black/10 rounded-full h-2.5 overflow-hidden">
@@ -181,6 +186,11 @@ function CapacityMonitoringContent() {
                           <MapPin className="h-3.5 w-3.5 text-[#c1122f]" />
                           {attraction.location}
                         </p>
+                        {attraction.capacityIsPreview && (
+                          <span className="mt-1 inline-block rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
+                            Preview capacity
+                          </span>
+                        )}
                       </div>
 
                       <span

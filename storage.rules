@@ -10,11 +10,29 @@ service firebase.storage {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return signedIn()
+        && firestore.get(
+          /databases/(default)/documents/users/$(request.auth.uid)
+        ).data.get('status', 'Active') == 'Active'
+        && firestore.get(
+          /databases/(default)/documents/users/$(request.auth.uid)
+        ).data.role in ['admin', 'tourism'];
+    }
+
     match /users/{userId}/profile/{fileName} {
       allow read: if isOwner(userId);
       allow write: if isOwner(userId)
         && request.resource.size <= 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+    }
+
+    match /attractions/{attractionId}/{fileName} {
+      allow read: if true;
+      allow create, update: if isAdmin()
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if isAdmin();
     }
   }
 }

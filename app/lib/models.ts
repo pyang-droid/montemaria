@@ -4,12 +4,18 @@ export interface AttractionRecord extends DocumentData {
   id: string;
   name: string;
   type: "Paid" | "Free";
-  capacity: number;
-  currentVisitors: number;
+  capacity: number | null;
+  currentVisitors: number | null;
   schedule: string;
   status: "Open" | "Closed";
   description: string;
   entranceFee: number | null;
+  isActive?: boolean;
+  isPublished?: boolean;
+  capacityIsPreview?: boolean;
+  displayOrder?: number;
+  slug?: string;
+  imagePath?: string;
   location?: string;
   tagline?: string;
   fullDescription?: string;
@@ -17,7 +23,6 @@ export interface AttractionRecord extends DocumentData {
   img?: string;
   badge?: string;
   highlights?: string[];
-  timeSlots?: { time: string; label: string }[];
 }
 
 export interface BookingRecord extends DocumentData {
@@ -39,6 +44,20 @@ export interface BookingRecord extends DocumentData {
   ticketStatus?: "active" | "used" | "expired" | "cancelled";
   visitStatus?: "outside" | "inside" | "exited";
   createdAt?: unknown;
+}
+
+export interface AttractionAccessRequestRecord extends DocumentData {
+  id: string;
+  userId: string;
+  userEmail: string;
+  attractionId: string;
+  attractionName: string;
+  requestType: "free_access";
+  requestedVisitors: number;
+  status: "pending" | "approved" | "denied";
+  createdAt?: unknown;
+  reviewedAt?: unknown;
+  reviewedBy?: string;
 }
 
 export interface PaymentRecord extends DocumentData {

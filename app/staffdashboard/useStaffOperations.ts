@@ -32,6 +32,7 @@ export interface AttractionInfo {
   type: "Paid" | "Free";
   currentVisitors: number | null;
   capacity: number | null;
+  capacityIsPreview: boolean;
   status: AttractionStatus;
   operatingHours: string;
   stationTerminal: string;
@@ -134,6 +135,7 @@ function toAttraction(record: AttractionRecord): AttractionInfo {
     type: record.type,
     currentVisitors,
     capacity,
+    capacityIsPreview: record.capacityIsPreview !== false,
     status: statusFromCapacity(currentVisitors, capacity, record.status === "Closed"),
     operatingHours: record.schedule ?? "—",
     stationTerminal:

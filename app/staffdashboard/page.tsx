@@ -284,6 +284,11 @@ function StaffDashboardContent() {
                     <span className="text-2xl font-bold text-white/90 mt-0.5 block">
                       {currentAttraction.capacity ?? "—"} <span className="text-xs font-normal text-white/60">pax</span>
                     </span>
+                    {currentAttraction.capacityIsPreview && (
+                      <span className="mt-1 inline-block text-[10px] font-semibold text-amber-300">
+                        Temporary preview
+                      </span>
+                    )}
                   </div>
                   <div>
                     <span className="block text-[10px] font-bold uppercase tracking-wider text-white/60">Operating Hours</span>
@@ -569,7 +574,7 @@ function StaffDashboardContent() {
                       {currentAttraction.currentVisitors ?? "—"}
                     </span>
                     <span className="text-xs text-[#6e6e73]">
-                      / {currentAttraction.capacity ?? "—"} Safe Limit
+                      / {currentAttraction.capacity ?? "—"} {currentAttraction.capacityIsPreview ? "Preview Limit" : "Safe Limit"}
                     </span>
                   </div>
 

@@ -1,7 +1,14 @@
 
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  addDoc,
+  collection,
+  doc,
+  onSnapshot,
+  serverTimestamp,
+} from "firebase/firestore";
 
 import DashboardNav from "./DashboardNav";
 
@@ -20,7 +27,7 @@ import PaymentModal, {
   type PaymentMethod,
 } from "./components/PaymentModal";
 
-import { auth } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
 import { useLiveCollection } from "../lib/firestore";
 import type { AttractionRecord } from "../lib/models";
 import { getDailyBookingActivity } from "./components/bookingActivity";
@@ -40,8 +47,15 @@ export default function DashboardPage() {
     records: attractionRecords,
     loading: attractionsLoading,
     error: attractionsError,
-  } = useLiveCollection<AttractionRecord>("attractions");
-  const attractions: Attraction[] = attractionRecords.map((record) => ({
+  } = useLiveCollection<AttractionRecord>("attractions", true);
+  const attractions: Attraction[] = attractionRecords
+    .filter((record) => record.isActive !== false && record.isPublished !== false)
+    .sort(
+      (a, b) =>
+        (a.displayOrder ?? Number.MAX_SAFE_INTEGER) -
+        (b.displayOrder ?? Number.MAX_SAFE_INTEGER)
+    )
+    .map((record) => ({
     id: record.id,
     name: record.name ?? "",
     tagline: record.tagline,
@@ -52,11 +66,13 @@ export default function DashboardPage() {
     currentVisitors:
       typeof record.currentVisitors === "number" ? record.currentVisitors : null,
     maxCapacity: typeof record.capacity === "number" ? record.capacity : null,
-    timeSlots: Array.isArray(record.timeSlots) ? record.timeSlots : [],
+    capacityIsPreview: record.capacityIsPreview !== false,
+    schedule: record.schedule ?? "",
     img: record.img,
     badge: record.badge,
     type: record.type === "Paid" ? "paid" : "free",
     highlights: record.highlights,
+    status: record.status === "Closed" ? "Closed" : "Open",
   }));
   // ==========================================
   // STATES
@@ -82,6 +98,37 @@ export default function DashboardPage() {
 
   const [generatedCode, setGeneratedCode] =
     useState<string | null>(null);
+  const [requestingAccess, setRequestingAccess] = useState(false);
+  const [accessRequestMessage, setAccessRequestMessage] =
+    useState<string | null>(null);
+  const [accessRequestId, setAccessRequestId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!accessRequestId) return;
+
+    return onSnapshot(
+      doc(db, "attractionAccessRequests", accessRequestId),
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          setAccessRequestMessage("This access request is no longer available.");
+          return;
+        }
+
+        const status = snapshot.data().status;
+        const statusMessage =
+          status === "approved"
+            ? "was approved. Secure access-code issuance is not configured, so no ticket was issued."
+            : status === "denied"
+              ? "was denied by an administrator."
+              : "is awaiting administrator review.";
+        setAccessRequestMessage(`Request ${accessRequestId} ${statusMessage}`);
+      },
+      (requestError) => {
+        console.error("Unable to listen for access request updates:", requestError);
+        setPaymentError("Unable to retrieve the latest access request status.");
+      }
+    );
+  }, [accessRequestId]);
 
   // ==========================================
   // FILTER ATTRACTIONS
@@ -112,6 +159,8 @@ export default function DashboardPage() {
     setCurrentBooking(null);
     setPaymentError(null);
     setGeneratedCode(null);
+    setAccessRequestMessage(null);
+    setAccessRequestId(null);
   };
 
   // ==========================================
@@ -127,6 +176,8 @@ export default function DashboardPage() {
     setCurrentBooking(null);
     setPaymentError(null);
     setGeneratedCode(null);
+    setAccessRequestMessage(null);
+    setAccessRequestId(null);
   };
 
   // ==========================================
@@ -138,7 +189,7 @@ export default function DashboardPage() {
       return;
     }
 
-    if (selectedAttraction.type !== "paid") {
+    if (selectedAttraction.type !== "paid" || selectedAttraction.status !== "Open") {
       return;
     }
 
@@ -219,18 +270,57 @@ export default function DashboardPage() {
   // FREE ATTRACTION ACCESS
   // ==========================================
 
-  const handleGenerateCode = () => {
-    // A valid access code must be issued
-    // by the backend and associated with
-    // an actual visitor or booking record.
-    //
-    // Do not create a fake valid QR ticket.
+  const handleGenerateCode = async (visitorCount: number) => {
+    const user = auth.currentUser;
+    if (!user) {
+      setPaymentError("Sign in before requesting free attraction access.");
+      return;
+    }
+    if (
+      !selectedAttraction ||
+      selectedAttraction.type !== "free" ||
+      selectedAttraction.status !== "Open" ||
+      !Number.isInteger(visitorCount) ||
+      visitorCount < 1 ||
+      selectedAttraction.maxCapacity === null ||
+      visitorCount > selectedAttraction.maxCapacity
+    ) {
+      setPaymentError(
+        selectedAttraction?.maxCapacity === null
+          ? "Access requests are unavailable until an administrator sets a verified capacity."
+          : "This attraction cannot accept that access request."
+      );
+      return;
+    }
 
+    setRequestingAccess(true);
+    setPaymentError(null);
+    setAccessRequestMessage(null);
     setGeneratedCode(null);
-
-    setPaymentError(
-      "Secure access-code issuance is not configured. No ticket was created."
-    );
+    try {
+      const requestRef = await addDoc(
+        collection(db, "attractionAccessRequests"),
+        {
+          userId: user.uid,
+          userEmail: user.email ?? "",
+          attractionId: selectedAttraction.id,
+          attractionName: selectedAttraction.name,
+          requestType: "free_access",
+          requestedVisitors: visitorCount,
+          status: "pending",
+          createdAt: serverTimestamp(),
+        }
+      );
+      setAccessRequestId(requestRef.id);
+      setAccessRequestMessage(
+        `Request ${requestRef.id} was submitted for administrator review. This is not an access code or ticket.`
+      );
+    } catch (requestError) {
+      console.error("Unable to submit free attraction access request:", requestError);
+      setPaymentError("Unable to submit the access request. Check your sign-in and try again.");
+    } finally {
+      setRequestingAccess(false);
+    }
   };
 
   // ==========================================
@@ -412,15 +502,19 @@ export default function DashboardPage() {
         !showBookingModal &&
         !showPaymentModal && (
           <AttractionDetailsModal
+            key={selectedAttraction.id}
             attraction={selectedAttraction}
             onClose={handleCloseDetails}
             onBookNow={handleBookNow}
             onGenerateCode={
-              selectedAttraction.type === "free"
+              selectedAttraction.type === "free" &&
+              selectedAttraction.status === "Open"
                 ? handleGenerateCode
                 : undefined
             }
             generatedCode={generatedCode}
+            accessRequestMessage={accessRequestMessage}
+            requestingAccess={requestingAccess}
           />
         )}
 

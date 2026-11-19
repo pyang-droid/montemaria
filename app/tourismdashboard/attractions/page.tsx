@@ -3,17 +3,28 @@
 
 import { useMemo, useState } from "react";
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
   serverTimestamp,
+  setDoc,
+  Timestamp,
   updateDoc,
 } from "firebase/firestore";
+import {
+  deleteObject,
+  getDownloadURL,
+  ref,
+  uploadBytes,
+} from "firebase/storage";
 import AdminNav from "../AdminNav";
-import { db } from "../../lib/firebase";
+import { auth, db, storage } from "../../lib/firebase";
 import { useLiveCollection } from "../../lib/firestore";
-import type { AttractionRecord } from "../../lib/models";
+import { generateBookingTimeOptions } from "../../lib/bookingSchedule";
+import type {
+  AttractionAccessRequestRecord,
+  AttractionRecord,
+} from "../../lib/models";
 import {
   Search,
   Eye,
@@ -35,13 +46,24 @@ interface Attraction {
   id: string;
   name: string;
   type: AttractionType;
-  capacity: number;
+  capacity: number | null;
+  capacityIsPreview: boolean;
   currentVisitors: number | null;
-  timeSlots: { time: string; label: string }[];
   schedule: string;
   status: AttractionStatus;
   description: string;
   entranceFee: number | null;
+  tagline: string;
+  fullDescription: string;
+  duration: string;
+  img: string;
+  imagePath: string;
+  imageFile: File | null;
+  badge: string;
+  highlights: string[];
+  isActive: boolean;
+  isPublished: boolean;
+  displayOrder: number;
 }
 
 const moneyFormatter = new Intl.NumberFormat("en-PH", {
@@ -57,6 +79,16 @@ function formatFee(attraction: Attraction) {
   }
 
   return moneyFormatter.format(attraction.entranceFee);
+}
+
+function slugify(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function StatusBadge({
@@ -99,21 +131,35 @@ function TypeBadge({ type }: { type: AttractionType }) {
 export default function AttractionsPage() {
   const { records, loading, error } =
     useLiveCollection<AttractionRecord>("attractions");
-  const attractions: Attraction[] = records.map((record) => ({
+  const {
+    records: accessRequests,
+    loading: requestsLoading,
+    error: requestsError,
+  } = useLiveCollection<AttractionAccessRequestRecord>("attractionAccessRequests");
+  const attractions: Attraction[] = records.map((record, index) => ({
     id: record.id,
     name: record.name,
     type: record.type,
-    capacity: record.capacity,
+    capacity: typeof record.capacity === "number" ? record.capacity : null,
+    capacityIsPreview: record.capacityIsPreview !== false,
     currentVisitors:
       typeof record.currentVisitors === "number" ? record.currentVisitors : null,
-    timeSlots: Array.isArray(record.timeSlots)
-      ? record.timeSlots.map(({ time, label }) => ({ time, label }))
-      : [],
     schedule: record.schedule,
     status: record.status,
     description: record.description ?? "",
     entranceFee: record.entranceFee ?? null,
-  }));
+    tagline: record.tagline ?? "",
+    fullDescription: record.fullDescription ?? "",
+    duration: record.duration ?? "",
+    img: record.img ?? "",
+    imagePath: record.imagePath ?? "",
+    imageFile: null,
+    badge: record.badge ?? "",
+    highlights: Array.isArray(record.highlights) ? record.highlights : [],
+    isActive: record.isActive === true,
+    isPublished: record.isPublished === true,
+    displayOrder: typeof record.displayOrder === "number" ? record.displayOrder : index + 1,
+  })).sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name));
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -124,8 +170,10 @@ export default function AttractionsPage() {
 
   const [modalMode, setModalMode] = useState<ModalMode>("view");
   const [formError, setFormError] = useState("");
+  const [pageError, setPageError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null);
 
   const totalAttractions = attractions.length;
 
@@ -138,9 +186,15 @@ export default function AttractionsPage() {
   ).length;
 
   const totalCapacity = attractions.reduce(
-    (total, attraction) => total + attraction.capacity,
+    (total, attraction) => total + (attraction.capacity ?? 0),
     0
   );
+  const attractionsWithCapacity = attractions.filter(
+    (attraction) => attraction.capacity !== null
+  ).length;
+  const previewCapacityCount = attractions.filter(
+    (attraction) => attraction.capacityIsPreview && attraction.capacity !== null
+  ).length;
 
   const paidAttractions = attractions.filter(
     (attraction) => attraction.type === "Paid"
@@ -158,6 +212,8 @@ export default function AttractionsPage() {
         attraction.name.toLowerCase().includes(query) ||
         attraction.schedule.toLowerCase().includes(query) ||
         attraction.description.toLowerCase().includes(query) ||
+        attraction.tagline.toLowerCase().includes(query) ||
+        attraction.fullDescription.toLowerCase().includes(query) ||
         attraction.id.toString().includes(query);
 
       const matchesStatus =
@@ -195,9 +251,9 @@ export default function AttractionsPage() {
       color: "text-[#c1122f]",
     },
     {
-      title: "Total Visitor Capacity",
-      value: totalCapacity,
-      description: "Combined concurrent capacity",
+      title: "Total Listed Capacity",
+      value: attractionsWithCapacity ? totalCapacity : "—",
+      description: `${attractionsWithCapacity - previewCapacityCount} confirmed; ${previewCapacityCount} temporary preview values`,
       icon: Users,
       color: "text-gray-900",
     },
@@ -260,9 +316,14 @@ export default function AttractionsPage() {
 
     const name = selectedAttraction.name.trim();
     const schedule = selectedAttraction.schedule.trim();
+    const slug = slugify(name);
 
     if (!name) {
       setFormError("Attraction name is required.");
+      return;
+    }
+    if (!slug) {
+      setFormError("Enter a name that can be used as an attraction URL.");
       return;
     }
 
@@ -277,11 +338,32 @@ export default function AttractionsPage() {
       return;
     }
 
+    const duplicateSlug = attractions.some(
+      (attraction) =>
+        attraction.id !== selectedAttraction.id &&
+        slugify(attraction.name) === slug
+    );
+    if (duplicateSlug) {
+      setFormError("An attraction with this URL already exists.");
+      return;
+    }
+
     if (
       !Number.isInteger(selectedAttraction.capacity) ||
+      selectedAttraction.capacity === null ||
       selectedAttraction.capacity < 1
     ) {
       setFormError("Maximum capacity must be a whole number of at least 1.");
+      return;
+    }
+
+    if (
+      selectedAttraction.currentVisitors !== null &&
+      (!Number.isInteger(selectedAttraction.currentVisitors) ||
+        selectedAttraction.currentVisitors < 0 ||
+        selectedAttraction.currentVisitors > selectedAttraction.capacity)
+    ) {
+      setFormError("Current visitors must be a whole number within the attraction capacity, or left blank if unknown.");
       return;
     }
 
@@ -289,13 +371,29 @@ export default function AttractionsPage() {
       setFormError("Operating schedule is required.");
       return;
     }
+    if (
+      selectedAttraction.type === "Paid" &&
+      selectedAttraction.status === "Open" &&
+      selectedAttraction.isActive &&
+      selectedAttraction.isPublished &&
+      generateBookingTimeOptions(schedule, selectedAttraction.duration).issue
+    ) {
+      setFormError(
+        "An open, published paid attraction needs a valid estimated duration and operating schedule that allow at least one booking time."
+      );
+      return;
+    }
+    if (!Number.isInteger(selectedAttraction.displayOrder) || selectedAttraction.displayOrder < 1) {
+      setFormError("Display order must be a whole number of at least 1.");
+      return;
+    }
 
     if (
-      selectedAttraction.timeSlots.some(
-        ({ time }) => !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)
-      )
+      selectedAttraction.imageFile &&
+      (!selectedAttraction.imageFile.type.startsWith("image/") ||
+        selectedAttraction.imageFile.size > 5 * 1024 * 1024)
     ) {
-      setFormError("Booking times must use 24-hour HH:mm format.");
+      setFormError("Choose an image file no larger than 5 MB.");
       return;
     }
 
@@ -312,9 +410,16 @@ export default function AttractionsPage() {
     const updatedAttraction = {
       ...selectedAttraction,
       name,
+      slug,
       schedule,
       description: selectedAttraction.description.trim(),
-      currentVisitors: selectedAttraction.currentVisitors,
+      tagline: selectedAttraction.tagline.trim(),
+      fullDescription: selectedAttraction.fullDescription.trim(),
+      duration: selectedAttraction.duration.trim(),
+      badge: selectedAttraction.badge.trim(),
+      highlights: selectedAttraction.highlights
+        .map((highlight) => highlight.trim())
+        .filter(Boolean),
       entranceFee:
         selectedAttraction.type === "Free"
           ? 0
@@ -323,38 +428,88 @@ export default function AttractionsPage() {
 
     setSaving(true);
     setFormError("");
+    setPageError("");
+    let uploadedImage: ReturnType<typeof ref> | null = null;
     try {
+      const attractionRef =
+        modalMode === "create"
+          ? doc(collection(db, "attractions"))
+          : doc(db, "attractions", updatedAttraction.id);
+      let imageUrl = updatedAttraction.img;
+      let imagePath = updatedAttraction.imagePath;
+
+      if (updatedAttraction.imageFile) {
+        const extension =
+          updatedAttraction.imageFile.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+        uploadedImage = ref(
+          storage,
+          `attractions/${attractionRef.id}/cover-${Date.now()}.${extension}`
+        );
+        const upload = await uploadBytes(uploadedImage, updatedAttraction.imageFile, {
+          contentType: updatedAttraction.imageFile.type,
+        });
+        imageUrl = await getDownloadURL(upload.ref);
+        imagePath = upload.ref.fullPath;
+      }
+
+      const attractionData = {
+        name: updatedAttraction.name,
+        slug: updatedAttraction.slug,
+        displayOrder: updatedAttraction.displayOrder,
+        type: updatedAttraction.type,
+        capacity: updatedAttraction.capacity,
+        capacityIsPreview: updatedAttraction.capacityIsPreview,
+        currentVisitors: updatedAttraction.currentVisitors,
+        schedule: updatedAttraction.schedule,
+        status: updatedAttraction.status,
+        description: updatedAttraction.description,
+        tagline: updatedAttraction.tagline,
+        fullDescription: updatedAttraction.fullDescription,
+        duration: updatedAttraction.duration,
+        img: imageUrl,
+        imagePath,
+        badge: updatedAttraction.badge,
+        highlights: updatedAttraction.highlights,
+        isActive: updatedAttraction.isActive,
+        isPublished: updatedAttraction.isPublished,
+        entranceFee: updatedAttraction.entranceFee,
+        updatedAt: serverTimestamp(),
+      };
+
       if (modalMode === "create") {
-        await addDoc(collection(db, "attractions"), {
-          name: updatedAttraction.name,
-          type: updatedAttraction.type,
-          capacity: updatedAttraction.capacity,
-          currentVisitors: 0,
-          schedule: updatedAttraction.schedule,
-          status: updatedAttraction.status,
-          description: updatedAttraction.description,
-          entranceFee: updatedAttraction.entranceFee,
-          timeSlots: updatedAttraction.timeSlots,
+        await setDoc(attractionRef, {
+          ...attractionData,
           createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
         });
       } else {
-        await updateDoc(doc(db, "attractions", updatedAttraction.id), {
-          name: updatedAttraction.name,
-          type: updatedAttraction.type,
-          capacity: updatedAttraction.capacity,
-          schedule: updatedAttraction.schedule,
-          status: updatedAttraction.status,
-          description: updatedAttraction.description,
-          entranceFee: updatedAttraction.entranceFee,
-          timeSlots: updatedAttraction.timeSlots,
-          updatedAt: serverTimestamp(),
-        });
+        await updateDoc(attractionRef, attractionData);
       }
+
+      if (
+        updatedAttraction.imagePath &&
+        updatedAttraction.imagePath !== imagePath
+      ) {
+        try {
+          await deleteObject(ref(storage, updatedAttraction.imagePath));
+        } catch (cleanupError) {
+          console.error("Unable to remove the previous attraction image:", cleanupError);
+          setPageError("The attraction was saved, but its previous image could not be removed from Storage.");
+        }
+      }
+
       setSuccessMessage(`${updatedAttraction.name} was saved.`);
       closeModal();
     } catch (saveError) {
       console.error("Unable to save attraction:", saveError);
+      if (uploadedImage) {
+        try {
+          await deleteObject(uploadedImage);
+        } catch (cleanupError) {
+          console.error("Unable to clean up an unused attraction image:", cleanupError);
+          setFormError("Unable to save this attraction, and the uploaded image could not be cleaned up. Contact an administrator.");
+          return;
+        }
+      }
       setFormError("Unable to save this attraction. Check your access and try again.");
     } finally {
       setSaving(false);
@@ -366,13 +521,64 @@ export default function AttractionsPage() {
       return;
     }
 
+    setPageError("");
     try {
       await deleteDoc(doc(db, "attractions", attraction.id));
       setSuccessMessage(`${attraction.name} was deleted.`);
+      if (attraction.imagePath) {
+        try {
+          await deleteObject(ref(storage, attraction.imagePath));
+        } catch (cleanupError) {
+          console.error("Unable to remove the deleted attraction image:", cleanupError);
+          setPageError("The attraction record was deleted, but its image could not be removed from Storage.");
+        }
+      }
     } catch (deleteError) {
       console.error("Unable to delete attraction:", deleteError);
-      setFormError("Unable to delete this attraction. Check your access and try again.");
+      setPageError("Unable to delete this attraction. Check your access and try again.");
     }
+  }
+
+  async function reviewAccessRequest(
+    request: AttractionAccessRequestRecord,
+    status: "approved" | "denied"
+  ) {
+    if (request.status !== "pending") return;
+    if (
+      !window.confirm(
+        `${status === "approved" ? "Approve" : "Deny"} this access request? This does not issue an access code.`
+      )
+    ) {
+      return;
+    }
+
+    const reviewerId = auth.currentUser?.uid;
+    if (!reviewerId) {
+      setPageError("Sign in with an administrator account to review access requests.");
+      return;
+    }
+
+    setReviewingRequestId(request.id);
+    setPageError("");
+    try {
+      await updateDoc(doc(db, "attractionAccessRequests", request.id), {
+        status,
+        reviewedBy: reviewerId,
+        reviewedAt: serverTimestamp(),
+      });
+      setSuccessMessage(`Access request ${request.id} was ${status}. No code was issued.`);
+    } catch (reviewError) {
+      console.error("Unable to review attraction access request:", reviewError);
+      setPageError("Unable to review this request. Check administrator access and try again.");
+    } finally {
+      setReviewingRequestId(null);
+    }
+  }
+
+  function formatRequestDate(value: unknown) {
+    return value instanceof Timestamp
+      ? value.toDate().toLocaleString()
+      : "Date unavailable";
   }
 
   function openCreateModal() {
@@ -380,13 +586,25 @@ export default function AttractionsPage() {
       id: "",
       name: "",
       type: "Paid",
-      capacity: 0,
-      currentVisitors: 0,
-      timeSlots: [],
+      capacity: null,
+      capacityIsPreview: false,
+      displayOrder:
+        Math.max(0, ...attractions.map((attraction) => attraction.displayOrder)) + 1,
+      currentVisitors: null,
       schedule: "",
       status: "Closed",
       description: "",
       entranceFee: null,
+      tagline: "",
+      fullDescription: "",
+      duration: "",
+      img: "",
+      imagePath: "",
+      imageFile: null,
+      badge: "",
+      highlights: [],
+      isActive: true,
+      isPublished: false,
     });
     setModalMode("create");
     setFormError("");
@@ -450,6 +668,15 @@ export default function AttractionsPage() {
             </div>
           )}
 
+          {pageError && (
+            <p
+              role="alert"
+              className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            >
+              {pageError}
+            </p>
+          )}
+
           {/* SUMMARY CARDS */}
           <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {summaryCards.map((card) => {
@@ -501,8 +728,8 @@ export default function AttractionsPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  {paidAttractions} paid and {freeAttractions} free
-                  attractions in the current records.
+                {paidAttractions} paid and {freeAttractions} free attractions in the current records.
+                Visibility is controlled independently from operating status.
                 </p>
               </div>
 
@@ -567,16 +794,18 @@ export default function AttractionsPage() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1050px]">
+              <table className="w-full min-w-[1200px]">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/70">
                     {[
                       "Attraction",
                       "Type",
                       "Capacity",
+                      "Currently Inside",
                       "Entrance Fee",
                       "Operating Schedule",
                       "Status",
+                      "Visibility",
                       "Actions",
                     ].map((heading) => (
                       <th
@@ -611,7 +840,16 @@ export default function AttractionsPage() {
                       </td>
 
                       <td className="px-5 py-5 text-sm font-semibold text-gray-700">
-                        {attraction.capacity}
+                        {attraction.capacity ?? "Not set"}
+                        {attraction.capacityIsPreview && attraction.capacity !== null && (
+                          <span className="ml-2 rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase text-amber-700">
+                            Preview
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-5 py-5 text-sm font-semibold text-gray-700">
+                        {attraction.currentVisitors ?? "Unknown"}
                       </td>
 
                       <td className="px-5 py-5 text-sm text-gray-600">
@@ -621,12 +859,23 @@ export default function AttractionsPage() {
                       <td className="px-5 py-5">
                         <span className="inline-flex items-center gap-2 whitespace-nowrap text-sm text-gray-600">
                           <Clock3 size={15} className="text-gray-400" />
-                          {attraction.schedule}
+                          {attraction.schedule || "Not set"}
                         </span>
                       </td>
 
                       <td className="px-5 py-5">
                         <StatusBadge status={attraction.status} />
+                      </td>
+
+                      <td className="px-5 py-5">
+                        <div className="flex flex-col items-start gap-1">
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${attraction.isActive ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"}`}>
+                            {attraction.isActive ? "Active" : "Inactive"}
+                          </span>
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${attraction.isPublished ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"}`}>
+                            {attraction.isPublished ? "Published" : "Unpublished"}
+                          </span>
+                        </div>
                       </td>
 
                       <td className="px-5 py-5">
@@ -725,6 +974,92 @@ export default function AttractionsPage() {
             </div>
           </div>
 
+          <section className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="border-b border-gray-100 p-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                Free Attraction Access Requests
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Review real visitor requests. Approval does not generate an access code.
+              </p>
+            </div>
+
+            {requestsLoading ? (
+              <p className="p-8 text-center text-sm text-gray-500">
+                Loading access requests…
+              </p>
+            ) : requestsError ? (
+              <p role="alert" className="p-8 text-center text-sm text-red-700">
+                {requestsError}
+              </p>
+            ) : accessRequests.length === 0 ? (
+              <p className="p-8 text-center text-sm text-gray-500">
+                No access requests have been submitted.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px]">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50/70">
+                      {["Attraction", "Visitor account", "Visitors", "Submitted", "Status", "Review"].map((heading) => (
+                        <th key={heading} className="px-5 py-4 text-left text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {accessRequests.map((request) => (
+                      <tr key={request.id}>
+                        <td className="px-5 py-4 text-sm font-semibold text-gray-800">
+                          {request.attractionName}
+                        </td>
+                        <td className="px-5 py-4 text-sm text-gray-600">
+                          {request.userEmail || request.userId}
+                        </td>
+                        <td className="px-5 py-4 text-sm text-gray-600">
+                          {request.requestedVisitors}
+                        </td>
+                        <td className="px-5 py-4 text-sm text-gray-600">
+                          {formatRequestDate(request.createdAt)}
+                        </td>
+                        <td className="px-5 py-4 text-sm font-semibold capitalize text-gray-700">
+                          {request.status}
+                        </td>
+                        <td className="px-5 py-4">
+                          {request.status === "pending" ? (
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                disabled={reviewingRequestId === request.id}
+                                onClick={() => void reviewAccessRequest(request, "approved")}
+                                className="text-sm font-semibold text-green-700 hover:underline disabled:opacity-50"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                disabled={reviewingRequestId === request.id}
+                                onClick={() => void reviewAccessRequest(request, "denied")}
+                                className="text-sm font-semibold text-red-700 hover:underline disabled:opacity-50"
+                              >
+                                Deny
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">
+                              Reviewed by administrator
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
           <p className="mt-8 text-center text-xs text-gray-400">
             Montemaria Express · Tourism Administration
           </p>
@@ -786,6 +1121,13 @@ export default function AttractionsPage() {
             {/* VIEW DETAILS */}
             {modalMode === "view" ? (
               <div className="space-y-5 p-6">
+                {selectedAttraction.img && (
+                  <img
+                    src={selectedAttraction.img}
+                    alt={selectedAttraction.name}
+                    className="h-52 w-full rounded-xl object-cover"
+                  />
+                )}
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
                     Attraction Name
@@ -809,13 +1151,32 @@ export default function AttractionsPage() {
                     </p>
                     <StatusBadge status={selectedAttraction.status} />
                   </div>
+                  <div>
+                    <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-400">
+                      Visibility
+                    </p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {selectedAttraction.isActive ? "Active" : "Inactive"} · {selectedAttraction.isPublished ? "Published" : "Unpublished"}
+                    </p>
+                  </div>
 
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
                       Maximum Capacity
                     </p>
                     <p className="mt-2 text-sm font-semibold text-gray-900">
-                      {selectedAttraction.capacity} visitors
+                      {selectedAttraction.capacity === null
+                        ? "Not set"
+                        : `${selectedAttraction.capacity} visitors${selectedAttraction.capacityIsPreview ? " (temporary preview)" : ""}`}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                      Currently Inside
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-gray-900">
+                      {selectedAttraction.currentVisitors ?? "Unknown"}
                     </p>
                   </div>
 
@@ -846,6 +1207,45 @@ export default function AttractionsPage() {
                     {selectedAttraction.description ||
                       "No description provided."}
                   </p>
+                </div>
+
+                {selectedAttraction.fullDescription && (
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                      Full Description
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-600">
+                      {selectedAttraction.fullDescription}
+                    </p>
+                  </div>
+                )}
+
+                {selectedAttraction.highlights.length > 0 && (
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                      Highlights
+                    </p>
+                    <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-gray-600">
+                      {selectedAttraction.highlights.map((highlight) => (
+                        <li key={highlight}>{highlight}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {selectedAttraction.tagline && (
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Tagline</p>
+                      <p className="mt-2 text-sm text-gray-700">{selectedAttraction.tagline}</p>
+                    </div>
+                  )}
+                  {selectedAttraction.duration && (
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Estimated Duration</p>
+                      <p className="mt-2 text-sm text-gray-700">{selectedAttraction.duration}</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-xl bg-gray-50 px-4 py-3 text-xs leading-5 text-gray-500">
@@ -905,6 +1305,24 @@ export default function AttractionsPage() {
                 </div>
 
                 <div>
+                  <label htmlFor="attraction-display-order" className="mb-2 block text-sm font-semibold text-gray-700">
+                    Display Order
+                  </label>
+                  <input
+                    id="attraction-display-order"
+                    type="number"
+                    min="1"
+                    step="1"
+                    required
+                    value={selectedAttraction.displayOrder}
+                    onChange={(event) =>
+                      updateField("displayOrder", Number(event.target.value))
+                    }
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#c1122f]"
+                  />
+                </div>
+
+                <div>
                   <label
                     htmlFor="attraction-description"
                     className="mb-2 block text-sm font-semibold text-gray-700"
@@ -922,6 +1340,97 @@ export default function AttractionsPage() {
                     placeholder="Enter attraction description..."
                     className="w-full resize-y rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#c1122f]"
                   />
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="attraction-tagline" className="mb-2 block text-sm font-semibold text-gray-700">
+                      Short Tagline
+                    </label>
+                    <input
+                      id="attraction-tagline"
+                      type="text"
+                      value={selectedAttraction.tagline}
+                      onChange={(event) => updateField("tagline", event.target.value)}
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#c1122f]"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="attraction-duration" className="mb-2 block text-sm font-semibold text-gray-700">
+                      Estimated Duration
+                    </label>
+                    <input
+                      id="attraction-duration"
+                      type="text"
+                      value={selectedAttraction.duration}
+                      onChange={(event) => updateField("duration", event.target.value)}
+                      placeholder="e.g. 45 minutes or 1-2 hours"
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#c1122f]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="attraction-full-description" className="mb-2 block text-sm font-semibold text-gray-700">
+                    Full Description
+                  </label>
+                  <textarea
+                    id="attraction-full-description"
+                    rows={5}
+                    value={selectedAttraction.fullDescription}
+                    onChange={(event) => updateField("fullDescription", event.target.value)}
+                    className="w-full resize-y rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-700 outline-none focus:border-[#c1122f]"
+                  />
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="attraction-badge" className="mb-2 block text-sm font-semibold text-gray-700">
+                      Badge
+                    </label>
+                    <input
+                      id="attraction-badge"
+                      type="text"
+                      value={selectedAttraction.badge}
+                      onChange={(event) => updateField("badge", event.target.value)}
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#c1122f]"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="attraction-highlights" className="mb-2 block text-sm font-semibold text-gray-700">
+                      Highlights (one per line)
+                    </label>
+                    <textarea
+                      id="attraction-highlights"
+                      rows={3}
+                      value={selectedAttraction.highlights.join("\n")}
+                      onChange={(event) => updateField("highlights", event.target.value.split("\n"))}
+                      className="w-full resize-y rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#c1122f]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="attraction-cover" className="mb-2 block text-sm font-semibold text-gray-700">
+                    Cover Image
+                  </label>
+                  <input
+                    id="attraction-cover"
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) =>
+                      updateField("imageFile", event.target.files?.[0] ?? null)
+                    }
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-700 file:mr-4 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-semibold"
+                  />
+                  <p className="mt-2 text-xs text-gray-400">
+                    Upload a JPG, PNG, or WebP image up to 5 MB.{" "}
+                    {selectedAttraction.imageFile
+                      ? `Selected: ${selectedAttraction.imageFile.name}`
+                      : selectedAttraction.img
+                        ? "A cover image is currently set."
+                        : "No cover image is set."}
+                  </p>
                 </div>
 
                 <div className="grid gap-5 sm:grid-cols-2">
@@ -962,7 +1471,7 @@ export default function AttractionsPage() {
                       min="1"
                       step="1"
                       required
-                      value={selectedAttraction.capacity}
+                      value={selectedAttraction.capacity ?? ""}
                       onChange={(event) =>
                         updateField(
                           "capacity",
@@ -971,7 +1480,47 @@ export default function AttractionsPage() {
                       }
                       className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#c1122f]"
                     />
+                    <label className="mt-3 flex items-start gap-2 text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={!selectedAttraction.capacityIsPreview}
+                        onChange={(event) =>
+                          updateField("capacityIsPreview", !event.target.checked)
+                        }
+                        className="mt-0.5 accent-[#c1122f]"
+                      />
+                      Mark this capacity as verified
+                    </label>
+                    {selectedAttraction.capacityIsPreview && (
+                      <p className="mt-2 text-xs text-amber-700">
+                        This is a temporary screenshot value. Verify or replace it before relying on it operationally.
+                      </p>
+                    )}
                   </div>
+                </div>
+
+                <div>
+                  <label htmlFor="attraction-current-visitors" className="mb-2 block text-sm font-semibold text-gray-700">
+                    Current Visitors Inside
+                  </label>
+                  <input
+                    id="attraction-current-visitors"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={selectedAttraction.currentVisitors ?? ""}
+                    onChange={(event) =>
+                      updateField(
+                        "currentVisitors",
+                        event.target.value === "" ? null : Number(event.target.value)
+                      )
+                    }
+                    placeholder="Leave blank if occupancy has not been verified"
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#c1122f]"
+                  />
+                  <p className="mt-2 text-xs text-gray-400">
+                    This is live occupancy, not a preview statistic. Only enter a verified current headcount.
+                  </p>
                 </div>
 
                 <div>
@@ -1027,33 +1576,13 @@ export default function AttractionsPage() {
                     onChange={(event) =>
                       updateField("schedule", event.target.value)
                     }
-                    placeholder="Example: 8:00 AM - 5:00 PM"
+                    placeholder="Example: 7:00 AM - 7:30 PM"
                     className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#c1122f]"
                   />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="attraction-time-slots"
-                    className="mb-2 block text-sm font-semibold text-gray-700"
-                  >
-                    Booking Times (24-hour)
-                  </label>
-                  <input
-                    id="attraction-time-slots"
-                    type="text"
-                    value={selectedAttraction.timeSlots.map(({ time }) => time).join(", ")}
-                    onChange={(event) => {
-                      const timeSlots = event.target.value
-                        .split(",")
-                        .map((time) => time.trim())
-                        .filter(Boolean)
-                        .map((time) => ({ time, label: time }));
-                      updateField("timeSlots", timeSlots);
-                    }}
-                    placeholder="08:00, 10:00"
-                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#c1122f]"
-                  />
+                  <p className="mt-2 text-xs text-gray-400">
+                    Booking times are generated from these hours and the estimated duration.
+                    Multiple open periods can be separated by commas.
+                  </p>
                 </div>
 
                 <div>
@@ -1086,6 +1615,42 @@ export default function AttractionsPage() {
                     visitor booking flow is connected to these records.
                   </p>
                 </div>
+
+                <fieldset className="rounded-xl border border-gray-200 p-4">
+                  <legend className="px-1 text-sm font-semibold text-gray-700">
+                    Visitor Visibility
+                  </legend>
+                  <div className="space-y-3">
+                    <label className="flex items-start gap-3 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={selectedAttraction.isActive}
+                        onChange={(event) => updateField("isActive", event.target.checked)}
+                        className="mt-0.5 accent-[#c1122f]"
+                      />
+                      <span>
+                        <span className="block font-semibold">Active</span>
+                        <span className="mt-1 block text-xs text-gray-500">
+                          Inactive attractions are hidden from visitors and cannot be booked.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-3 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={selectedAttraction.isPublished}
+                        onChange={(event) => updateField("isPublished", event.target.checked)}
+                        className="mt-0.5 accent-[#c1122f]"
+                      />
+                      <span>
+                        <span className="block font-semibold">Published</span>
+                        <span className="mt-1 block text-xs text-gray-500">
+                          Only published attractions appear on public pages.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </fieldset>
 
                 <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                   <p className="text-sm font-semibold text-gray-800">

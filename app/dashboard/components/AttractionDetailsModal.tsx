@@ -1,14 +1,17 @@
 
 "use client";
 
+import { useState } from "react";
 import type { Attraction } from "./AttractionCard";
 
 interface AttractionDetailsModalProps {
   attraction: Attraction;
   onClose: () => void;
   onBookNow: () => void;
-  onGenerateCode?: () => void;
+  onGenerateCode?: (visitorCount: number) => void;
   generatedCode?: string | null;
+  accessRequestMessage?: string | null;
+  requestingAccess?: boolean;
 }
 
 export default function AttractionDetailsModal({
@@ -17,8 +20,11 @@ export default function AttractionDetailsModal({
   onBookNow,
   onGenerateCode,
   generatedCode,
+  accessRequestMessage,
+  requestingAccess = false,
 }: AttractionDetailsModalProps) {
   const isPaid = attraction.type === "paid";
+  const [visitorCount, setVisitorCount] = useState(1);
 
   return (
     <div
@@ -211,7 +217,11 @@ export default function AttractionDetailsModal({
           ============================================ */}
           {!generatedCode && (
             <>
-              {isPaid ? (
+              {attraction.status === "Closed" ? (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-center text-sm font-medium text-gray-600">
+                  This attraction is currently closed. Please check back later.
+                </div>
+              ) : isPaid ? (
                 <button
                   type="button"
                   onClick={onBookNow}
@@ -234,13 +244,33 @@ export default function AttractionDetailsModal({
                   </div>
 
                   {onGenerateCode && (
-                    <button
-                      type="button"
-                      onClick={onGenerateCode}
-                      className="w-full py-4 bg-gray-800 text-white rounded-xl font-semibold hover:bg-gray-900 transition-all"
-                    >
-                      Request Access Code
-                    </button>
+                    <>
+                      <label className="block text-left text-sm font-medium text-gray-700">
+                        Number of visitors
+                        <input
+                          type="number"
+                          min="1"
+                          max={attraction.maxCapacity ?? undefined}
+                          step="1"
+                          value={visitorCount}
+                          onChange={(event) => setVisitorCount(Number(event.target.value))}
+                          className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-[#c1122f]"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => onGenerateCode(visitorCount)}
+                        disabled={requestingAccess || !Number.isInteger(visitorCount) || visitorCount < 1}
+                        className="w-full py-4 bg-gray-800 text-white rounded-xl font-semibold hover:bg-gray-900 transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {requestingAccess ? "Submitting request…" : "Request Access"}
+                      </button>
+                    </>
+                  )}
+                  {accessRequestMessage && (
+                    <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                      {accessRequestMessage}
+                    </p>
                   )}
                 </div>
               )}

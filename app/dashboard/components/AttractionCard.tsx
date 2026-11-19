@@ -11,14 +11,13 @@ export interface Attraction {
   duration?: string;
   currentVisitors: number | null;
   maxCapacity: number | null;
-  timeSlots: {
-    time: string;
-    label: string;
-  }[];
+  capacityIsPreview: boolean;
+  schedule: string;
   img?: string;
   badge?: string;
   type: "paid" | "free";
   highlights?: string[];
+  status: "Open" | "Closed";
 }
 
 interface AttractionCardProps {
@@ -33,16 +32,22 @@ export default function AttractionCard({
   const capacity = attraction.maxCapacity;
 
   const occupancy =
-    capacity !== null && capacity > 0 && attraction.currentVisitors !== null
+    !attraction.capacityIsPreview &&
+    capacity !== null &&
+    capacity > 0 &&
+    attraction.currentVisitors !== null
       ? Math.min(
           Math.round(
             ((attraction.currentVisitors ?? 0) / capacity) * 100
           ),
           100
         )
-      : 0;
+      : null;
 
-  const available = attraction.currentVisitors === null || capacity === null
+  const available =
+    attraction.capacityIsPreview ||
+    attraction.currentVisitors === null ||
+    capacity === null
     ? null
     : Math.max(capacity - attraction.currentVisitors, 0);
 
@@ -63,6 +68,12 @@ export default function AttractionCard({
         )}
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+
+        {attraction.status === "Closed" && (
+          <span className="absolute bottom-3 left-3 rounded-full bg-gray-900/90 px-3 py-1.5 text-xs font-medium text-white">
+            Currently closed
+          </span>
+        )}
 
         {attraction.badge && (
           <span className="absolute top-3 left-3 bg-gray-800/90 text-white text-xs px-3 py-1.5 rounded-full font-medium">
@@ -104,11 +115,16 @@ export default function AttractionCard({
 
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-gray-500">
-            {attraction.currentVisitors === null || capacity === null ? "Occupancy unavailable" : "Currently Inside"}
+            {attraction.capacityIsPreview
+              ? "Temporary capacity"
+              : attraction.currentVisitors === null || capacity === null
+                ? "Occupancy unavailable"
+                : "Currently Inside"}
           </span>
 
           <span
             className={`text-xs font-bold ${
+              !attraction.capacityIsPreview &&
               attraction.currentVisitors !== null &&
               capacity !== null &&
               attraction.currentVisitors >= capacity
@@ -116,21 +132,25 @@ export default function AttractionCard({
                 : "text-gray-700"
             }`}
           >
-            {attraction.currentVisitors === null || capacity === null ? "—" : `${attraction.currentVisitors} / ${capacity}`}
+            {attraction.currentVisitors === null || capacity === null
+              ? `— / ${capacity ?? "—"}`
+              : `${attraction.currentVisitors} / ${capacity}`}
           </span>
         </div>
 
         <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden mb-3">
-          <div
-            className={`h-full rounded-full ${
-              occupancy >= 100
-                ? "bg-red-600"
-                : occupancy >= 80
-                ? "bg-orange-500"
-                : "bg-green-600"
-            }`}
-            style={{ width: `${occupancy}%` }}
-          />
+          {occupancy !== null && (
+            <div
+              className={`h-full rounded-full ${
+                occupancy >= 100
+                  ? "bg-red-600"
+                  : occupancy >= 80
+                    ? "bg-orange-500"
+                    : "bg-green-600"
+              }`}
+              style={{ width: `${occupancy}%` }}
+            />
+          )}
         </div>
 
         <div className="flex items-center justify-between text-xs text-gray-500">

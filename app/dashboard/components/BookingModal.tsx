@@ -1,8 +1,9 @@
 
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Attraction } from "./AttractionCard";
+import { generateBookingTimeOptions } from "../../lib/bookingSchedule";
 
 // ============================================
 // TYPES
@@ -98,6 +99,10 @@ export default function BookingModal({
   const today = getLocalDateString(new Date());
 
   const pricePerPerson = attraction.price;
+  const { slots: availableTimeSlots, issue: timeSlotIssue } = useMemo(
+    () => generateBookingTimeOptions(attraction.schedule, attraction.duration ?? ""),
+    [attraction.schedule, attraction.duration]
+  );
 
   const totalAmount = pricePerPerson === null
     ? null
@@ -176,7 +181,7 @@ export default function BookingModal({
   // SELECTED TIME SLOT
   // ============================================
 
-  const selectedSlot = attraction.timeSlots.find(
+  const selectedSlot = availableTimeSlots.find(
     (slot) => slot.time === bookingTime
   );
 
@@ -408,40 +413,42 @@ export default function BookingModal({
                   Select Time
                 </label>
 
-                <div className="grid grid-cols-2 gap-3">
-                  {attraction.timeSlots.map(
-                    (slot) => {
-                      const selected =
-                        bookingTime === slot.time;
+                {availableTimeSlots.length > 0 ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      {availableTimeSlots.map((slot) => {
+                        const selected = bookingTime === slot.time;
 
-                      return (
-                        <button
-                          key={slot.time}
-                          type="button"
-                          onClick={() =>
-                            setBookingTime(
-                              slot.time
-                            )
-                          }
-                          className={`rounded-xl border px-4 py-3 text-sm font-medium transition-all ${
-                            selected
-                              ? "bg-gray-800 border-gray-800 text-white"
-                              : "bg-white border-gray-200 text-gray-700 hover:border-gray-500"
-                          }`}
-                        >
-                          {slot.label}
-                        </button>
-                      );
-                    }
-                  )}
-                </div>
-
-                <p className="text-xs text-gray-400 mt-3">
-                  Select your preferred visit time.
-                  Times shown are scheduling
-                  options, not confirmed
-                  availability.
-                </p>
+                        return (
+                          <button
+                            key={slot.time}
+                            type="button"
+                            onClick={() => setBookingTime(slot.time)}
+                            className={`rounded-xl border px-4 py-3 text-sm font-medium transition-all ${
+                              selected
+                                ? "bg-gray-800 border-gray-800 text-white"
+                                : "bg-white border-gray-200 text-gray-700 hover:border-gray-500"
+                            }`}
+                          >
+                            {slot.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-3">
+                      Times are generated from the estimated duration and operating
+                      schedule. Each visit must finish before closing.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-amber-700" role="status">
+                    {timeSlotIssue === "duration"
+                      ? "Booking times are unavailable until an administrator enters a valid estimated duration."
+                      : timeSlotIssue === "schedule"
+                        ? "Booking times are unavailable until an administrator enters valid operating hours."
+                        : "The estimated duration is longer than the available operating hours."}
+                  </p>
+                )}
               </div>
             )}
 
@@ -569,10 +576,8 @@ export default function BookingModal({
             </button>
 
             <p className="text-center text-xs text-gray-400">
-              Booking activity is provided
-              for visitor guidance only.
-              It does not impose a daily
-              booking limit.
+              Booking activity is for guidance only. It does not guarantee
+              availability for a selected time.
             </p>
           </form>
         </div>

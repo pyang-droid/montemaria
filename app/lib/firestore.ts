@@ -1,16 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   collection,
   onSnapshot,
+  query,
+  where,
   type DocumentData,
 } from "firebase/firestore";
 import { db } from "./firebase";
 
 export type FirestoreRecord<T extends DocumentData> = T & { id: string };
 
-export function useLiveCollection<T extends DocumentData>(name: string) {
+export function useLiveCollection<T extends DocumentData>(
+  name: string,
+  publishedAttractionsOnly = false
+) {
+  const source = useMemo(
+    () =>
+      publishedAttractionsOnly
+        ? query(
+            collection(db, name),
+            where("isActive", "==", true),
+            where("isPublished", "==", true)
+          )
+        : collection(db, name),
+    [name, publishedAttractionsOnly]
+  );
   const [state, setState] = useState<{
     name: string;
     records: FirestoreRecord<T>[];
@@ -20,7 +36,7 @@ export function useLiveCollection<T extends DocumentData>(name: string) {
 
   useEffect(() => {
     return onSnapshot(
-      collection(db, name),
+      source,
       (snapshot) => {
         setState({
           name,
@@ -42,7 +58,7 @@ export function useLiveCollection<T extends DocumentData>(name: string) {
         });
       }
     );
-  }, [name]);
+  }, [name, source]);
 
   const current = state.name === name;
   return {

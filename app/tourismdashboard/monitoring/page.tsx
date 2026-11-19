@@ -30,6 +30,7 @@ interface AttractionMonitoring {
   type: AttractionType;
   currentVisitors: number | null;
   capacity: number | null;
+  capacityIsPreview: boolean;
 }
 
 interface VisitorRecord {
@@ -73,8 +74,12 @@ const occupancyLegend = [
   },
 ];
 
-function getOccupancyStatus(current: number | null, capacity: number | null) {
-  if (current === null || capacity === null || capacity <= 0) {
+function getOccupancyStatus(
+  current: number | null,
+  capacity: number | null,
+  capacityIsPreview = false
+) {
+  if (capacityIsPreview || current === null || capacity === null || capacity <= 0) {
     return {
       label: "Unavailable",
       text: "text-gray-500",
@@ -184,6 +189,7 @@ export default function MonitoringPage() {
     type: record.type,
     currentVisitors: typeof record.currentVisitors === "number" ? record.currentVisitors : null,
     capacity: typeof record.capacity === "number" ? record.capacity : null,
+    capacityIsPreview: record.capacityIsPreview !== false,
   }));
   const visitorRecords: VisitorRecord[] = logRecords.map((record) => {
     const time =
@@ -234,13 +240,16 @@ export default function MonitoringPage() {
     (attraction) =>
       attraction.currentVisitors !== null &&
       attraction.capacity !== null &&
-      attraction.capacity > 0
+      attraction.capacity > 0 &&
+      !attraction.capacityIsPreview
   ) && monitoringData.length > 0;
 
   const availableCapacity = monitoringData.reduce(
     (total, attraction) =>
       total +
-      (attraction.capacity !== null && attraction.currentVisitors !== null
+      (!attraction.capacityIsPreview &&
+      attraction.capacity !== null &&
+      attraction.currentVisitors !== null
         ? Math.max(0, attraction.capacity - attraction.currentVisitors)
         : 0),
     0
@@ -250,6 +259,7 @@ export default function MonitoringPage() {
     (attraction) =>
       attraction.currentVisitors !== null &&
       attraction.capacity !== null &&
+      !attraction.capacityIsPreview &&
       attraction.currentVisitors >= attraction.capacity
   ).length;
 
@@ -282,7 +292,8 @@ export default function MonitoringPage() {
 
     const occupancy = getOccupancyStatus(
       attraction.currentVisitors,
-      attraction.capacity
+      attraction.capacity,
+      attraction.capacityIsPreview
     ).label;
 
     const matchesOccupancy =
@@ -608,7 +619,8 @@ export default function MonitoringPage() {
                 const rawPercentage =
                   attraction.capacity !== null &&
                   attraction.capacity > 0 &&
-                  attraction.currentVisitors !== null
+                  attraction.currentVisitors !== null &&
+                  !attraction.capacityIsPreview
                     ? (attraction.currentVisitors / attraction.capacity) * 100
                     : null;
                 const percentage =
@@ -616,12 +628,14 @@ export default function MonitoringPage() {
 
                 const status = getOccupancyStatus(
                   attraction.currentVisitors,
-                  attraction.capacity
+                  attraction.capacity,
+                  attraction.capacityIsPreview
                 );
 
                 const remaining =
                   attraction.capacity !== null &&
-                  attraction.currentVisitors !== null
+                  attraction.currentVisitors !== null &&
+                  !attraction.capacityIsPreview
                     ? Math.max(0, attraction.capacity - attraction.currentVisitors)
                     : null;
 
@@ -719,6 +733,9 @@ export default function MonitoringPage() {
 
                         <p className="mt-1 text-sm font-bold text-gray-800">
                           {attraction.capacity ?? "—"}
+                          {attraction.capacityIsPreview && attraction.capacity !== null && (
+                            <span className="ml-1 text-[10px] font-semibold uppercase text-amber-700">Preview</span>
+                          )}
                         </p>
                       </div>
 

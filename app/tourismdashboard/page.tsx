@@ -122,12 +122,14 @@ export default function TourismDashboardPage() {
     name: attraction.name,
     current: typeof attraction.currentVisitors === "number" ? attraction.currentVisitors : null,
     capacity: typeof attraction.capacity === "number" ? attraction.capacity : null,
+    capacityIsPreview: attraction.capacityIsPreview !== false,
   }));
   const occupancyAvailable = occupancyData.length > 0 && occupancyData.every(
     (attraction) =>
       attraction.current !== null &&
       attraction.capacity !== null &&
-      attraction.capacity > 0
+      attraction.capacity > 0 &&
+      !attraction.capacityIsPreview
   );
   const recentBookings = [...bookings]
     .sort((a, b) => {
@@ -303,7 +305,7 @@ export default function TourismDashboardPage() {
                   </h2>
 
                   <p className="mt-1 text-xs text-gray-400">
-                    Current visitor counts and attraction capacity
+                    Current visitor counts and capacity. Temporary preview limits are excluded from occupancy calculations.
                   </p>
                 </div>
 
@@ -371,7 +373,8 @@ export default function TourismDashboardPage() {
                   const percentage =
                     attraction.capacity !== null &&
                     attraction.capacity > 0 &&
-                    attraction.current !== null
+                    attraction.current !== null &&
+                    !attraction.capacityIsPreview
                       ? Math.min(
                           100,
                           Math.round(
@@ -384,7 +387,7 @@ export default function TourismDashboardPage() {
 
                   const status = getOccupancyStatus(
                     attraction.current,
-                    attraction.capacity
+                    attraction.capacityIsPreview ? null : attraction.capacity
                   );
 
                   return (
@@ -409,8 +412,8 @@ export default function TourismDashboardPage() {
                             </h3>
 
                             <p className="mt-0.5 text-xs text-gray-400">
-                              {attraction.current ?? "—"} of{" "}
-                              {attraction.capacity ?? "—"} visitors
+                              {attraction.current ?? "—"} of {attraction.capacity ?? "—"} visitors
+                              {attraction.capacityIsPreview ? " · temporary capacity" : ""}
                             </p>
                           </div>
                         </div>

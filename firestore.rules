@@ -63,7 +63,10 @@ service cloud.firestore {
     }
 
     match /attractions/{attractionId} {
-      allow read: if true;
+      allow read: if isAdmin()
+        || isStaff()
+        || (resource.data.isActive == true
+          && resource.data.isPublished == true);
       allow create, delete: if isAdmin();
       allow update: if isAdmin()
         || (assignedTo(attractionId)
@@ -74,6 +77,41 @@ service cloud.firestore {
           && request.resource.data.currentVisitors <= resource.data.capacity
           && (!request.resource.data.keys().hasAny(['queuePaused'])
             || request.resource.data.queuePaused is bool));
+    }
+
+    match /attractionAccessRequests/{requestId} {
+      allow read: if activeUser()
+        && (resource.data.userId == request.auth.uid
+          || isAdmin()
+          || assignedTo(resource.data.attractionId));
+      allow create: if activeUser()
+        && request.resource.data.keys().hasOnly([
+          'userId', 'userEmail', 'attractionId', 'attractionName',
+          'requestType', 'requestedVisitors', 'status', 'createdAt'
+        ])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.userEmail == request.auth.token.email
+        && request.resource.data.requestType == 'free_access'
+        && request.resource.data.status == 'pending'
+        && request.resource.data.requestedVisitors is int
+        && request.resource.data.requestedVisitors > 0
+        && request.resource.data.createdAt == request.time
+        && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.type == 'Free'
+        && request.resource.data.attractionName
+          == get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.name
+        && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.status == 'Open'
+        && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.isActive == true
+        && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.isPublished == true
+        && request.resource.data.requestedVisitors
+          <= get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.capacity;
+      allow update: if isAdmin()
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['approved', 'denied']
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'reviewedBy', 'reviewedAt']);
+      allow delete: if false;
     }
 
     match /bookings/{bookingId} {
@@ -95,6 +133,9 @@ service cloud.firestore {
           'transactionReference', 'createdAt'
         ])
         && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.type == 'Paid'
+        && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.status == 'Open'
+        && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.isActive == true
+        && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.isPublished == true
         && request.resource.data.amount
           == get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.entranceFee
             * request.resource.data.numberOfVisitors;

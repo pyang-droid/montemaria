@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useLiveCollection } from "../lib/firestore";
-import type { AttractionRecord } from "../lib/models";
 
 /* =========================================================
    PROPS
@@ -13,6 +11,55 @@ interface AttractionsProps {
 }
 
 /* =========================================================
+   ATTRACTION DATA
+========================================================= */
+
+const attractions = [
+  {
+    name: "Mirage Walk",
+    tagline: "An illusion of infinite space.",
+    description:
+      "Step into a captivating visual experience where reflective surfaces and carefully positioned elements create the illusion of endless pathways and extraordinary perspectives.",
+    highlights: [
+      "Stunning visual illusions",
+      "Perfect for photography",
+      "Suitable for all ages",
+      "Unique experience",
+    ],
+    img: "/p1.jpg",
+    badge: "New Experience",
+  },
+  {
+    name: "View Deck",
+    tagline: "See Batangas from above.",
+    description:
+      "Take in sweeping views of the surrounding landscape and coastline from one of Monte Maria's most memorable vantage points.",
+    highlights: [
+      "Panoramic scenery",
+      "Great photography spot",
+      "Open-air experience",
+      "Coastal views",
+    ],
+    img: "/p5.jpg",
+    badge: "Popular",
+  },
+  {
+    name: "Glass Walk",
+    tagline: "A different way to see the view.",
+    description:
+      "Experience the scenery through a transparent elevated walkway that combines breathtaking surroundings with a memorable sense of adventure.",
+    highlights: [
+      "Transparent walkway",
+      "Elevated views",
+      "Unique experience",
+      "Scenic photography",
+    ],
+    img: "/p11.jpg",
+    badge: "Adventure",
+  },
+];
+
+/* =========================================================
    COMPONENT
 ========================================================= */
 
@@ -21,12 +68,7 @@ export default function Attractions({
 }: AttractionsProps) {
   const [active, setActive] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
-  const { records, loading, error } =
-    useLiveCollection<AttractionRecord>("attractions");
-  const attractions = records.filter((attraction) => attraction.status === "Open");
-  const current = attractions.length
-    ? attractions[active % attractions.length]
-    : undefined;
+  const current = attractions[active];
 
   /* =========================================================
      AUTO PLAY
@@ -43,7 +85,7 @@ export default function Attractions({
     }, 5000);
 
     return () => window.clearInterval(interval);
-  }, [isPlaying, attractions.length]);
+  }, [isPlaying]);
 
   /* =========================================================
      MANUAL SELECT
@@ -52,31 +94,6 @@ export default function Attractions({
   const selectAttraction = (index: number) => {
     setActive(index);
   };
-
-  if (loading) {
-    return (
-      <section id="attractions" className="bg-white py-16 text-center text-sm text-gray-500">
-        Loading attractions…
-      </section>
-    );
-  }
-
-  if (error || attractions.length === 0 || !current) {
-    return (
-      <section id="attractions" className="bg-white py-16 text-center">
-        <p role={error ? "alert" : undefined} className={error ? "text-sm text-red-700" : "text-sm text-gray-500"}>
-          {error ?? "No attractions are currently listed."}
-        </p>
-        <button
-          type="button"
-          onClick={onPlanVisit}
-          className="mt-5 rounded-full bg-[#c1122f] px-6 py-3 text-sm font-semibold text-white"
-        >
-          Plan Your Visit
-        </button>
-      </section>
-    );
-  }
 
   return (
     <section
@@ -139,25 +156,16 @@ export default function Attractions({
 
             <div className="relative min-h-[360px] overflow-hidden md:min-h-[480px]">
               {attractions.map((attraction, index) => (
-                attraction.img ? (
-                  <img
-                    key={attraction.name}
-                    src={attraction.img}
-                    alt={attraction.name}
-                    className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ${
-                      active === index
-                        ? "scale-100 opacity-100"
-                        : "pointer-events-none scale-[1.03] opacity-0"
-                    }`}
-                  />
-                ) : (
-                  <div
-                    key={attraction.name}
-                    className={`absolute inset-0 bg-gradient-to-br from-gray-300 to-gray-600 transition-opacity duration-700 ${
-                      active === index ? "opacity-100" : "pointer-events-none opacity-0"
-                    }`}
-                  />
-                )
+                <img
+                  key={attraction.name}
+                  src={attraction.img}
+                  alt={attraction.name}
+                  className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ${
+                    active === index
+                      ? "scale-100 opacity-100"
+                      : "pointer-events-none scale-[1.03] opacity-0"
+                  }`}
+                />
               ))}
 
               {/* IMAGE OVERLAY */}
@@ -166,11 +174,11 @@ export default function Attractions({
 
               {/* BADGE */}
 
-              {current.badge && <div className="absolute left-6 top-6">
+              <div className="absolute left-6 top-6">
                 <span className="rounded-full bg-white/90 px-4 py-2 text-xs font-semibold text-black backdrop-blur-md">
                   {current.badge}
                 </span>
-              </div>}
+              </div>
             </div>
 
             {/* ================= CONTENT ================= */}
@@ -181,7 +189,9 @@ export default function Attractions({
             >
               {/* TAGLINE */}
 
-              {current.tagline && <p className="text-sm font-medium text-gray-500">{current.tagline}</p>}
+              <p className="text-sm font-medium text-gray-500">
+                {current.tagline}
+              </p>
 
               {/* NAME */}
 
@@ -197,19 +207,17 @@ export default function Attractions({
 
               {/* HIGHLIGHTS */}
 
-              {current.highlights && current.highlights.length > 0 && (
-                <div className="mt-7 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-                  {current.highlights.map((highlight) => (
-                    <div
-                      key={highlight}
-                      className="flex items-start gap-2 text-sm text-gray-700"
-                    >
-                      <span className="mt-[7px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[#c1122f]" />
-                      <span>{highlight}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="mt-7 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+                {current.highlights.map((highlight) => (
+                  <div
+                    key={highlight}
+                    className="flex items-start gap-2 text-sm text-gray-700"
+                  >
+                    <span className="mt-[7px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[#c1122f]" />
+                    <span>{highlight}</span>
+                  </div>
+                ))}
+              </div>
 
               {/* =================================================
                   PLAN YOUR VISIT
