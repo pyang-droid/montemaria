@@ -4,6 +4,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { signOut } from "firebase/auth";
+import { auth } from "../lib/firebase";
 
 export default function DashboardNav() {
   const pathname = usePathname();
@@ -12,6 +14,8 @@ export default function DashboardNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
 
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -49,14 +53,10 @@ export default function DashboardNav() {
     };
   }, []);
 
-  // ============================================
-  // CLOSE MENUS WHEN ROUTE CHANGES
-  // ============================================
-
-  useEffect(() => {
+  const handleNavigation = () => {
     setMobileOpen(false);
     setProfileOpen(false);
-  }, [pathname]);
+  };
 
   // ============================================
   // OPEN LOGOUT CONFIRMATION
@@ -72,16 +72,20 @@ export default function DashboardNav() {
   // CONFIRM LOGOUT
   // ============================================
 
-  const handleConfirmLogout = () => {
-    setLogoutOpen(false);
-    setProfileOpen(false);
-    setMobileOpen(false);
-
-    // Frontend-only redirect.
-    // Add actual authentication sign-out
-    // here when the backend is implemented.
-
-    router.replace("/");
+  const handleConfirmLogout = async () => {
+    setSigningOut(true);
+    setLogoutError("");
+    try {
+      await signOut(auth);
+      setLogoutOpen(false);
+      handleNavigation();
+      router.replace("/");
+    } catch (error) {
+      console.error("Unable to sign out:", error);
+      setLogoutError("Unable to log out. Check your connection and try again.");
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   // ============================================
@@ -107,6 +111,7 @@ export default function DashboardNav() {
 
           <Link
             href="/"
+            onClick={handleNavigation}
             className="flex items-center"
             aria-label="Go to Monte Maria homepage"
           >
@@ -129,6 +134,7 @@ export default function DashboardNav() {
                 <Link
                   key={link.label}
                   href={link.href}
+                  onClick={handleNavigation}
                   className={`relative text-sm tracking-widest uppercase font-medium transition-colors ${
                     isActive
                       ? "text-gray-700 after:w-full after:bg-gray-300"
@@ -200,7 +206,7 @@ export default function DashboardNav() {
 
                   <Link
                     href="/dashboard/profile"
-                    onClick={() => setProfileOpen(false)}
+                    onClick={handleNavigation}
                     className="flex items-center gap-3 px-5 py-4 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                     style={{
                       fontFamily: "var(--font-montemaria-sans)",
@@ -316,7 +322,7 @@ export default function DashboardNav() {
               <Link
                 key={link.label}
                 href={link.href}
-                onClick={() => setMobileOpen(false)}
+                onClick={handleNavigation}
                 className={`text-2xl font-serif text-left py-3 border-b-2 transition-all ${
                   pathname === link.href
                     ? "border-brand-red text-brand-red"
@@ -334,7 +340,7 @@ export default function DashboardNav() {
 
             <Link
               href="/dashboard/profile"
-              onClick={() => setMobileOpen(false)}
+              onClick={handleNavigation}
               className="w-full py-3 border border-gray-300 rounded-full text-sm hover:bg-gray-50 transition-all text-center"
               style={{
                 fontFamily: "var(--font-montemaria-sans)",
@@ -420,12 +426,19 @@ export default function DashboardNav() {
               of your Montemaria Express account?
             </p>
 
+            {logoutError && (
+              <p role="alert" className="mb-5 text-sm text-red-700">
+                {logoutError}
+              </p>
+            )}
+
             {/* ACTION BUTTONS */}
 
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={handleCancelLogout}
+                disabled={signingOut}
                 className="flex-1 py-3 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-all"
               >
                 Cancel
@@ -433,10 +446,11 @@ export default function DashboardNav() {
 
               <button
                 type="button"
-                onClick={handleConfirmLogout}
+                onClick={() => void handleConfirmLogout()}
+                disabled={signingOut}
                 className="flex-1 py-3 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-all"
               >
-                Logout
+                {signingOut ? "Logging out…" : "Logout"}
               </button>
             </div>
           </div>

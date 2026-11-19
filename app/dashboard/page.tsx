@@ -20,7 +20,10 @@ import PaymentModal, {
   type PaymentMethod,
 } from "./components/PaymentModal";
 
-import { attractions } from "./components/attractions";
+import { auth } from "../lib/firebase";
+import { useLiveCollection } from "../lib/firestore";
+import type { AttractionRecord } from "../lib/models";
+import { getDailyBookingActivity } from "./components/bookingActivity";
 
 // ============================================
 // TYPES
@@ -29,72 +32,32 @@ import { attractions } from "./components/attractions";
 type AttractionFilter = "all" | "paid" | "free";
 
 // ============================================
-// TEMPORARY BOOKING DATA
-// FRONTEND DEMONSTRATION ONLY
-// ============================================
-
-// These numbers represent sample confirmed
-// visitors across the whole Montemaria site.
-//
-// They are NOT actual Firebase records.
-//
-// Replace this data source with Firebase
-// when backend development begins.
-
-const MOCK_DAILY_BOOKINGS: Record<string, number> = {
-  "2026-11-15": 85,
-  "2026-11-16": 42,
-  "2026-11-17": 110,
-  "2026-11-18": 65,
-  "2026-11-19": 95,
-  "2026-11-20": 38,
-  "2026-11-21": 120,
-  "2026-11-22": 75,
-  "2026-11-23": 48,
-  "2026-11-24": 105,
-};
-
-// ============================================
-// MOCK DAILY BOOKING ACTIVITY
-// ============================================
-
-async function getMockDailyBookingActivity(
-  date: string
-): Promise<DailyBookingActivity> {
-  // Small delay to simulate loading from backend.
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, 350);
-  });
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    throw new Error("Invalid booking date.");
-  }
-
-  // Return sample data only for configured dates.
-  // An unconfigured date is NOT assumed to have
-  // zero real bookings.
-
-  if (
-    !Object.prototype.hasOwnProperty.call(
-      MOCK_DAILY_BOOKINGS,
-      date
-    )
-  ) {
-    throw new Error(
-      "No sample booking activity is configured for this date."
-    );
-  }
-
-  return {
-    bookedVisitors: MOCK_DAILY_BOOKINGS[date],
-  };
-}
-
-// ============================================
 // DASHBOARD PAGE
 // ============================================
 
 export default function DashboardPage() {
+  const {
+    records: attractionRecords,
+    loading: attractionsLoading,
+    error: attractionsError,
+  } = useLiveCollection<AttractionRecord>("attractions");
+  const attractions: Attraction[] = attractionRecords.map((record) => ({
+    id: record.id,
+    name: record.name ?? "",
+    tagline: record.tagline,
+    description: record.description ?? "",
+    fullDescription: record.fullDescription,
+    price: typeof record.entranceFee === "number" ? record.entranceFee : null,
+    duration: record.duration,
+    currentVisitors:
+      typeof record.currentVisitors === "number" ? record.currentVisitors : null,
+    maxCapacity: typeof record.capacity === "number" ? record.capacity : null,
+    timeSlots: Array.isArray(record.timeSlots) ? record.timeSlots : [],
+    img: record.img,
+    badge: record.badge,
+    type: record.type === "Paid" ? "paid" : "free",
+    highlights: record.highlights,
+  }));
   // ==========================================
   // STATES
   // ==========================================
@@ -265,9 +228,8 @@ export default function DashboardPage() {
 
     setGeneratedCode(null);
 
-    alert(
-      "Access code generation will be available " +
-      "after the backend is connected."
+    setPaymentError(
+      "Secure access-code issuance is not configured. No ticket was created."
     );
   };
 
@@ -279,7 +241,11 @@ export default function DashboardPage() {
     async (
       date: string
     ): Promise<DailyBookingActivity> => {
-      return getMockDailyBookingActivity(date);
+      const userId = auth.currentUser?.uid;
+      if (!userId) {
+        throw new Error("Sign in to view your booking activity.");
+      }
+      return getDailyBookingActivity(date, userId);
     },
     []
   );
@@ -384,7 +350,15 @@ export default function DashboardPage() {
               ATTRACTION CARDS
           ================================== */}
 
-          {filteredAttractions.length > 0 ? (
+          {attractionsLoading ? (
+            <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center text-sm text-gray-500">
+              Loading attractions…
+            </div>
+          ) : attractionsError ? (
+            <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-12 text-center text-sm text-red-700">
+              {attractionsError}
+            </div>
+          ) : filteredAttractions.length > 0 ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
 
               {filteredAttractions.map(

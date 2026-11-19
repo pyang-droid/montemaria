@@ -37,11 +37,15 @@ export default function AttractionDetailsModal({
             ATTRACTION IMAGE
         ============================================ */}
         <div className="relative w-full h-[280px] md:h-[340px] overflow-hidden">
-          <img
-            src={attraction.img}
-            alt={attraction.name}
-            className="absolute inset-0 block w-full h-full object-cover"
-          />
+          {attraction.img ? (
+            <img
+              src={attraction.img}
+              alt={attraction.name}
+              className="absolute inset-0 block w-full h-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-500 to-gray-900" />
+          )}
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/10" />
 
@@ -60,9 +64,11 @@ export default function AttractionDetailsModal({
           {/* ATTRACTION TITLE */}
           <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
             <div className="flex items-center gap-2 mb-3">
-              <span className="bg-gray-800/90 text-white text-xs px-3 py-1.5 rounded-full">
-                {attraction.badge}
-              </span>
+              {attraction.badge && (
+                <span className="bg-gray-800/90 text-white text-xs px-3 py-1.5 rounded-full">
+                  {attraction.badge}
+                </span>
+              )}
 
               <span
                 className={`text-white text-xs px-3 py-1.5 rounded-full ${
@@ -120,14 +126,14 @@ export default function AttractionDetailsModal({
                 fontFamily: "var(--font-montemaria-sans)",
               }}
             >
-              {attraction.fullDescription}
+              {attraction.fullDescription || attraction.description || "No description provided."}
             </p>
           </section>
 
           {/* ============================================
               HIGHLIGHTS
           ============================================ */}
-          <section className="mb-8">
+          {attraction.highlights && attraction.highlights.length > 0 && <section className="mb-8">
             <h3
               className="text-xl font-bold text-gray-900 mb-4"
               style={{
@@ -151,12 +157,12 @@ export default function AttractionDetailsModal({
                 )
               )}
             </div>
-          </section>
+          </section>}
 
           {/* ============================================
               ESTIMATED DURATION
           ============================================ */}
-          <section className="mb-8">
+          {attraction.duration && <section className="mb-8">
             <div className="bg-gray-50 border border-gray-100 rounded-xl px-5 py-4 flex items-center justify-between gap-4">
               <span className="text-sm text-gray-500">
                 Estimated Duration
@@ -166,7 +172,7 @@ export default function AttractionDetailsModal({
                 {attraction.duration}
               </span>
             </div>
-          </section>
+          </section>}
 
           {/* ============================================
               ACCESS CODE (BACKEND-VERIFIED ONLY)
@@ -209,9 +215,10 @@ export default function AttractionDetailsModal({
                 <button
                   type="button"
                   onClick={onBookNow}
-                  className="w-full py-4 bg-gray-800 text-white rounded-xl font-semibold hover:bg-gray-900 transition-all"
+                  disabled={attraction.price === null}
+                  className="w-full py-4 bg-gray-800 text-white rounded-xl font-semibold hover:bg-gray-900 transition-all disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Book Now • ₱{attraction.price}
+                  {attraction.price === null ? "Price not set" : `Book Now • ₱${attraction.price}`}
                 </button>
               ) : (
                 <div className="space-y-3">

@@ -11,9 +11,8 @@ export interface LoginDestination {
 
 export async function getAccountRole(user: User): Promise<string> {
   const userDoc = await getDoc(doc(db, "users", user.uid));
-  return userDoc.exists()
-    ? (userDoc.data()?.role || "").toLowerCase()
-    : "";
+  if (!userDoc.exists() || userDoc.data()?.status === "Inactive") return "";
+  return (userDoc.data()?.role || "").toLowerCase();
 }
 
 export async function getLoginDestination(

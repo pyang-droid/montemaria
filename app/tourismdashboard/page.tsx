@@ -3,86 +3,8 @@
 
 import Link from "next/link";
 import AdminNav from "./AdminNav";
-
-/* =========================================================
-   SAMPLE DATA
-   Frontend preview only
-========================================================= */
-
-const occupancyData = [
-  {
-    id: 1,
-    name: "Mirage Walk",
-    current: 8,
-    capacity: 20,
-  },
-  {
-    id: 2,
-    name: "View Deck",
-    current: 35,
-    capacity: 50,
-  },
-  {
-    id: 3,
-    name: "Glass Walk",
-    current: 15,
-    capacity: 15,
-  },
-  {
-    id: 4,
-    name: "Miracle Walk",
-    current: 12,
-    capacity: 30,
-  },
-  {
-    id: 5,
-    name: "Gate of the Archangels",
-    current: 45,
-    capacity: 60,
-  },
-  {
-    id: 6,
-    name: "Sto. Niño Chapel",
-    current: 28,
-    capacity: 40,
-  },
-];
-
-/* =========================================================
-   DASHBOARD SUMMARY CARDS
-========================================================= */
-
-const summaryCards = [
-  {
-    label: "Total Bookings",
-    value: "156",
-    description: "Total visitor bookings",
-    href: "/tourismdashboard/bookings",
-  },
-  {
-    label: "Payment Records",
-    value: "142",
-    description: "Recorded payment transactions",
-    href: "/tourismdashboard/bookings",
-  },
-  {
-    label: "Total Attractions",
-    value: String(occupancyData.length),
-    description: "Registered tourist attractions",
-    href: "/tourismdashboard/attractions",
-  },
-  {
-    label: "Visitors Currently Inside",
-    value: String(
-      occupancyData.reduce(
-        (total, attraction) => total + attraction.current,
-        0
-      )
-    ),
-    description: "Visitors inside monitored attractions",
-    href: "/tourismdashboard/monitoring",
-  },
-];
+import { useLiveCollection } from "../lib/firestore";
+import type { AttractionRecord, BookingRecord, PaymentRecord } from "../lib/models";
 
 /* =========================================================
    QUICK ACCESS
@@ -112,53 +34,22 @@ const quickAccess = [
 ];
 
 /* =========================================================
-   RECENT BOOKINGS AND PAYMENTS
-========================================================= */
-
-const recentBookings = [
-  {
-    id: "BK-1001",
-    visitor: "Juan Dela Cruz",
-    attraction: "Mirage Walk",
-    schedule: "10:00 AM",
-    bookingStatus: "Confirmed",
-    paymentStatus: "Paid",
-  },
-  {
-    id: "BK-1002",
-    visitor: "Maria Santos",
-    attraction: "View Deck",
-    schedule: "11:30 AM",
-    bookingStatus: "Pending",
-    paymentStatus: "Pending",
-  },
-  {
-    id: "BK-1003",
-    visitor: "Carlo Reyes",
-    attraction: "Glass Walk",
-    schedule: "1:00 PM",
-    bookingStatus: "Confirmed",
-    paymentStatus: "Paid",
-  },
-  {
-    id: "BK-1004",
-    visitor: "Ana Mendoza",
-    attraction: "Miracle Walk",
-    schedule: "2:30 PM",
-    bookingStatus: "Confirmed",
-    paymentStatus: "Paid",
-  },
-];
-
-/* =========================================================
    OCCUPANCY STATUS
    Soft / muted colors
 ========================================================= */
 
 function getOccupancyStatus(
-  current: number,
-  capacity: number
+  current: number | null,
+  capacity: number | null
 ) {
+  if (current === null || capacity === null || capacity <= 0) {
+    return {
+      label: "Unavailable",
+      dot: "bg-gray-300",
+      text: "text-gray-500",
+      bar: "bg-gray-300",
+    };
+  }
   const percentage =
     capacity > 0
       ? Math.round((current / capacity) * 100)
@@ -220,6 +111,81 @@ function getStatusStyle(status: string) {
 ========================================================= */
 
 export default function TourismDashboardPage() {
+  const { records: attractionRecords, loading: attractionsLoading, error: attractionsError } =
+    useLiveCollection<AttractionRecord>("attractions");
+  const { records: bookings, loading: bookingsLoading, error: bookingsError } =
+    useLiveCollection<BookingRecord>("bookings");
+  const { records: payments, loading: paymentsLoading, error: paymentsError } =
+    useLiveCollection<PaymentRecord>("payments");
+  const occupancyData = attractionRecords.map((attraction) => ({
+    id: attraction.id,
+    name: attraction.name,
+    current: typeof attraction.currentVisitors === "number" ? attraction.currentVisitors : null,
+    capacity: typeof attraction.capacity === "number" ? attraction.capacity : null,
+  }));
+  const occupancyAvailable = occupancyData.length > 0 && occupancyData.every(
+    (attraction) =>
+      attraction.current !== null &&
+      attraction.capacity !== null &&
+      attraction.capacity > 0
+  );
+  const recentBookings = [...bookings]
+    .sort((a, b) => {
+      const getTime = (value: unknown) => {
+        if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
+          return value.toDate().getTime();
+        }
+        if (value instanceof Date) return value.getTime();
+        if (typeof value === "string") {
+          const date = new Date(value);
+          return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+        }
+        return 0;
+      };
+      return getTime(b.createdAt) - getTime(a.createdAt);
+    })
+    .slice(0, 5)
+    .map((booking) => ({
+    id: booking.id,
+    visitor: booking.visitor || booking.email || "—",
+    attraction: booking.attractionName || "—",
+    schedule: `${booking.bookingDate || "—"} ${booking.bookingTime || ""}`.trim(),
+    bookingStatus: booking.status === "confirmed" ? "Confirmed" : booking.status === "cancelled" ? "Cancelled" : booking.status === "pending" ? "Pending" : "Unknown",
+    paymentStatus: booking.paymentStatus === "paid" ? "Paid" : booking.paymentStatus === "refunded" ? "Refunded" : booking.paymentStatus === "pending" ? "Pending" : "Unknown",
+  }));
+  const summaryCards = [
+    {
+      label: "Total Bookings",
+      value: bookingsError ? "Unavailable" : bookingsLoading ? "—" : String(bookings.length),
+      description: "Total visitor bookings",
+      href: "/tourismdashboard/bookings",
+    },
+    {
+      label: "Payment Records",
+      value: paymentsError
+        ? "Unavailable"
+        : paymentsLoading
+        ? "—"
+        : String(payments.filter((payment) => (payment.status ?? payment.paymentStatus) === "paid").length),
+      description: "Recorded successful payments",
+      href: "/tourismdashboard/bookings",
+    },
+    {
+      label: "Total Attractions",
+      value: attractionsError ? "Unavailable" : attractionsLoading ? "—" : String(attractionRecords.length),
+      description: "Registered tourist attractions",
+      href: "/tourismdashboard/attractions",
+    },
+    {
+      label: "Visitors Currently Inside",
+      value: attractionsLoading || attractionsError || !occupancyAvailable
+        ? "—"
+        : String(occupancyData.reduce((total, attraction) => total + (attraction.current ?? 0), 0)),
+      description: "Visitors inside monitored attractions",
+      href: "/tourismdashboard/monitoring",
+    },
+  ];
+
   return (
     <>
       <AdminNav />
@@ -269,6 +235,12 @@ export default function TourismDashboardPage() {
               </p>
             </div>
           </div>
+
+          {(attractionsError || bookingsError || paymentsError) && (
+            <p role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {attractionsError || bookingsError || paymentsError}
+            </p>
+          )}
 
           {/* SUMMARY CARDS */}
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -366,6 +338,11 @@ export default function TourismDashboardPage() {
                     range: "100%",
                     dot: "bg-[#B76B73]",
                   },
+                  {
+                    label: "Unavailable",
+                    range: "Data unavailable",
+                    dot: "bg-gray-300",
+                  },
                 ].map((item) => (
                   <div
                     key={item.label}
@@ -384,9 +361,17 @@ export default function TourismDashboardPage() {
 
               {/* ATTRACTION OCCUPANCY LIST */}
               <div className="divide-y divide-gray-100">
-                {occupancyData.map((attraction) => {
+                {attractionsLoading ? (
+                  <p className="px-6 py-10 text-center text-sm text-gray-500">Loading attraction records…</p>
+                ) : attractionsError ? (
+                  <p role="alert" className="px-6 py-10 text-center text-sm text-red-700">{attractionsError}</p>
+                ) : occupancyData.length === 0 ? (
+                  <p className="px-6 py-10 text-center text-sm text-gray-500">No attractions have been added.</p>
+                ) : occupancyData.map((attraction) => {
                   const percentage =
-                    attraction.capacity > 0
+                    attraction.capacity !== null &&
+                    attraction.capacity > 0 &&
+                    attraction.current !== null
                       ? Math.min(
                           100,
                           Math.round(
@@ -395,7 +380,7 @@ export default function TourismDashboardPage() {
                               100
                           )
                         )
-                      : 0;
+                      : null;
 
                   const status = getOccupancyStatus(
                     attraction.current,
@@ -424,8 +409,8 @@ export default function TourismDashboardPage() {
                             </h3>
 
                             <p className="mt-0.5 text-xs text-gray-400">
-                              {attraction.current} of{" "}
-                              {attraction.capacity} visitors
+                              {attraction.current ?? "—"} of{" "}
+                              {attraction.capacity ?? "—"} visitors
                             </p>
                           </div>
                         </div>
@@ -438,7 +423,7 @@ export default function TourismDashboardPage() {
                           </p>
 
                           <p className="mt-0.5 text-xs text-gray-400">
-                            {percentage}%
+                            {percentage === null ? "—" : `${percentage}%`}
                           </p>
                         </div>
                       </div>
@@ -447,7 +432,7 @@ export default function TourismDashboardPage() {
                         <div
                           className={`h-full rounded-full transition-all duration-300 ${status.bar}`}
                           style={{
-                            width: `${percentage}%`,
+                            width: `${percentage ?? 0}%`,
                           }}
                         />
                       </div>
@@ -553,7 +538,13 @@ export default function TourismDashboardPage() {
                 </thead>
 
                 <tbody className="divide-y divide-gray-100">
-                  {recentBookings.map((booking) => (
+                  {bookingsLoading ? (
+                    <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-gray-500">Loading booking records…</td></tr>
+                  ) : bookingsError ? (
+                    <tr><td colSpan={6} role="alert" className="px-5 py-8 text-center text-sm text-red-700">{bookingsError}</td></tr>
+                  ) : recentBookings.length === 0 ? (
+                    <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-gray-500">No booking records are available.</td></tr>
+                  ) : recentBookings.map((booking) => (
                     <tr
                       key={booking.id}
                       className="transition-colors hover:bg-gray-50/60"

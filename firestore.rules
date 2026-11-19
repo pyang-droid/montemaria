@@ -2,30 +2,145 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+    function signedIn() {
+      return request.auth != null;
     }
 
-    function hasAdminRole() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
-          in ['admin', 'tourism'];
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function activeUser() {
+      return signedIn()
+        && exists(userPath(request.auth.uid))
+        && get(userPath(request.auth.uid)).data.get('status', 'Active') == 'Active';
+    }
+
+    function hasRole(roles) {
+      return activeUser()
+        && get(userPath(request.auth.uid)).data.role in roles;
+    }
+
+    function isAdmin() {
+      return hasRole(['admin', 'tourism']);
+    }
+
+    function isStaff() {
+      return hasRole(['staff', 'admin', 'tourism']);
+    }
+
+    function assignedTo(attractionId) {
+      let assignment = /databases/$(database)/documents/staffAssignments/$(request.auth.uid);
+      return isStaff()
+        && (isAdmin()
+          || (exists(assignment)
+            && get(assignment).data.active == true
+            && get(assignment).data.attractionId == attractionId));
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || hasAdminRole();
-      allow create: if (
-        isOwner(userId)
-        && request.resource.data.keys().hasOnly(['email', 'createdAt', 'role'])
+      allow read: if activeUser() && (request.auth.uid == userId || isAdmin());
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly([
+          'email', 'createdAt', 'role', 'status', 'firstName', 'lastName',
+          'username', 'mobileNumber', 'photoURL'
+        ])
         && request.resource.data.keys().hasAll(['email', 'createdAt', 'role'])
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.role == 'visitor'
-      ) || hasAdminRole();
-      allow update: if hasAdminRole()
-        || (isOwner(userId)
-          && request.resource.data.role == resource.data.role);
-      allow delete: if hasAdminRole();
+        && request.resource.data.get('status', 'Active') == 'Active';
+      allow update: if isAdmin()
+        || (activeUser()
+          && request.auth.uid == userId
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.get('status', 'Active') == resource.data.get('status', 'Active')
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'firstName', 'lastName', 'username', 'mobileNumber', 'photoURL',
+            'updatedAt'
+          ]));
+      allow delete: if isAdmin();
+    }
+
+    match /attractions/{attractionId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (assignedTo(attractionId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['currentVisitors', 'queuePaused', 'updatedAt'])
+          && request.resource.data.currentVisitors is int
+          && request.resource.data.currentVisitors >= 0
+          && request.resource.data.currentVisitors <= resource.data.capacity
+          && (!request.resource.data.keys().hasAny(['queuePaused'])
+            || request.resource.data.queuePaused is bool));
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if activeUser()
+        && (resource.data.userId == request.auth.uid
+          || isAdmin()
+          || assignedTo(resource.data.attractionId));
+      allow create: if activeUser()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.paymentStatus == 'pending'
+        && !request.resource.data.keys().hasAny(['ticketCode', 'ticketStatus'])
+        && request.resource.data.numberOfVisitors is int
+        && request.resource.data.numberOfVisitors > 0
+        && request.resource.data.keys().hasOnly([
+          'userId', 'visitor', 'email', 'attractionId', 'attractionName',
+          'bookingDate', 'bookingTime', 'numberOfVisitors', 'amount',
+          'status', 'paymentStatus', 'paymentMethod',
+          'transactionReference', 'createdAt'
+        ])
+        && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.type == 'Paid'
+        && request.resource.data.amount
+          == get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.entranceFee
+            * request.resource.data.numberOfVisitors;
+      allow update: if isAdmin()
+        || (activeUser()
+          && request.auth.uid == resource.data.userId
+          && resource.data.status == 'pending'
+          && resource.data.paymentStatus == 'pending'
+          && request.resource.data.status == 'cancelled'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']))
+        || (assignedTo(resource.data.attractionId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['visitStatus', 'updatedAt'])
+          && request.resource.data.visitStatus in ['inside', 'exited']);
+      allow delete: if isAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow read: if activeUser()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    match /visitorLogs/{logId} {
+      allow read: if activeUser()
+        && (isAdmin() || assignedTo(resource.data.attractionId));
+      allow create: if assignedTo(request.resource.data.attractionId)
+        && request.resource.data.keys().hasOnly([
+          'bookingId', 'ticketId', 'visitorName', 'attractionId',
+          'attractionName', 'eventType', 'pax', 'verifiedBy',
+          'reason', 'createdAt'
+        ])
+        && request.resource.data.eventType in ['ENTRY', 'EXIT', 'DENIED']
+        && request.resource.data.pax is int
+        && request.resource.data.pax > 0;
+      allow update, delete: if isAdmin();
+    }
+
+    match /staffAssignments/{userId} {
+      allow read: if activeUser()
+        && (request.auth.uid == userId || isAdmin());
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

@@ -1,12 +1,14 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import AdminNav from "../AdminNav";
+import { useLiveCollection } from "../../lib/firestore";
+import type { BookingRecord, PaymentRecord } from "../../lib/models";
 import { Search, X, Eye, CalendarDays, CreditCard } from "lucide-react";
 
-type BookingStatus = "Confirmed" | "Pending" | "Cancelled";
-type PaymentStatus = "Paid" | "Pending" | "Refunded";
+type BookingStatus = "Confirmed" | "Pending" | "Cancelled" | "Unknown";
+type PaymentStatus = "Paid" | "Pending" | "Refunded" | "Unknown";
 
 interface Booking {
   id: string;
@@ -14,81 +16,23 @@ interface Booking {
   attraction: string;
   date: string;
   slot: string;
-  guests: number;
+  guests: number | null;
   bookingStatus: BookingStatus;
   paymentStatus: PaymentStatus;
   transactionReference: string;
   paymentMethod: string;
-  amount: number;
+  amount: number | null;
 }
 
-const bookingRecords: Booking[] = [
-  {
-    id: "BK-1001",
-    visitor: "Juan Dela Cruz",
-    attraction: "Mirage Walk",
-    date: "September 30, 2026",
-    slot: "10:00 AM",
-    guests: 2,
-    bookingStatus: "Confirmed",
-    paymentStatus: "Paid",
-    transactionReference: "TXN-847291",
-    paymentMethod: "GCash",
-    amount: 400,
-  },
-  {
-    id: "BK-1002",
-    visitor: "Maria Santos",
-    attraction: "View Deck",
-    date: "September 30, 2026",
-    slot: "11:30 AM",
-    guests: 3,
-    bookingStatus: "Confirmed",
-    paymentStatus: "Paid",
-    transactionReference: "TXN-847292",
-    paymentMethod: "GCash",
-    amount: 450,
-  },
-  {
-    id: "BK-1003",
-    visitor: "Carlo Reyes",
-    attraction: "Glass Walk",
-    date: "September 30, 2026",
-    slot: "1:00 PM",
-    guests: 1,
-    bookingStatus: "Pending",
-    paymentStatus: "Pending",
-    transactionReference: "Pending",
-    paymentMethod: "Not yet available",
-    amount: 250,
-  },
-  {
-    id: "BK-1004",
-    visitor: "Angela Cruz",
-    attraction: "Mirage Walk",
-    date: "October 1, 2026",
-    slot: "9:30 AM",
-    guests: 4,
-    bookingStatus: "Confirmed",
-    paymentStatus: "Paid",
-    transactionReference: "TXN-847294",
-    paymentMethod: "GCash",
-    amount: 800,
-  },
-  {
-    id: "BK-1005",
-    visitor: "Paolo Garcia",
-    attraction: "Glass Walk",
-    date: "October 1, 2026",
-    slot: "2:30 PM",
-    guests: 2,
-    bookingStatus: "Cancelled",
-    paymentStatus: "Refunded",
-    transactionReference: "TXN-847295",
-    paymentMethod: "GCash",
-    amount: 500,
-  },
-];
+interface Payment {
+  id: string;
+  bookingId: string;
+  visitor: string;
+  amount: number | null;
+  paymentMethod: string;
+  status: PaymentStatus;
+  transactionReference: string;
+}
 
 const peso = (amount: number) =>
   new Intl.NumberFormat("en-PH", {
@@ -125,6 +69,64 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function BookingsPage() {
+  const { records, loading, error } =
+    useLiveCollection<BookingRecord>("bookings");
+  const {
+    records: paymentRecords,
+    loading: paymentsLoading,
+    error: paymentsError,
+  } = useLiveCollection<PaymentRecord>("payments");
+  const bookingRecords: Booking[] = records.map((record) => ({
+    id: record.id,
+    visitor: record.visitor ?? record.email ?? "—",
+    attraction: record.attractionName ?? "—",
+    date: record.bookingDate
+      ? new Date(`${record.bookingDate}T00:00:00`).toLocaleDateString("en-PH", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+      : "—",
+    slot: record.bookingTime ?? "—",
+    guests: typeof record.numberOfVisitors === "number" ? record.numberOfVisitors : null,
+    bookingStatus: (record.status === "confirmed"
+      ? "Confirmed"
+      : record.status === "cancelled"
+        ? "Cancelled"
+        : record.status === "pending"
+          ? "Pending"
+          : "Unknown"),
+    paymentStatus: record.paymentStatus === "paid"
+      ? "Paid"
+      : record.paymentStatus === "refunded"
+        ? "Refunded"
+        : record.paymentStatus === "pending"
+          ? "Pending"
+          : "Unknown",
+    transactionReference: record.transactionReference ?? "—",
+    paymentMethod: record.paymentMethod ?? "—",
+    amount: typeof record.amount === "number" ? record.amount : null,
+  }));
+  const bookingsById = new Map(bookingRecords.map((booking) => [booking.id, booking]));
+  const payments: Payment[] = paymentRecords.map((record) => {
+    const booking = record.bookingId ? bookingsById.get(record.bookingId) : undefined;
+    const rawStatus = record.status ?? record.paymentStatus;
+    return {
+      id: record.id,
+      bookingId: record.bookingId ?? "—",
+      visitor: booking?.visitor ?? "—",
+      amount: typeof record.amount === "number" ? record.amount : null,
+      paymentMethod: record.paymentMethod ?? "—",
+      status: rawStatus === "paid"
+        ? "Paid"
+        : rawStatus === "pending"
+          ? "Pending"
+          : rawStatus === "refunded"
+            ? "Refunded"
+            : "Unknown",
+      transactionReference: record.transactionReference ?? "—",
+    };
+  });
   const [search, setSearch] = useState("");
   const [bookingFilter, setBookingFilter] = useState("All");
   const [paymentFilter, setPaymentFilter] = useState("All");
@@ -135,8 +137,7 @@ export default function BookingsPage() {
     null
   );
 
-  const filteredBookings = useMemo(() => {
-    return bookingRecords.filter((booking) => {
+  const filteredBookings = bookingRecords.filter((booking) => {
       const query = search.trim().toLowerCase();
 
       const matchesSearch =
@@ -155,7 +156,16 @@ export default function BookingsPage() {
 
       return matchesSearch && matchesBooking && matchesPayment;
     });
-  }, [search, bookingFilter, paymentFilter]);
+  const filteredPayments = payments.filter((payment) => {
+    const query = search.trim().toLowerCase();
+    const matchesSearch =
+      payment.id.toLowerCase().includes(query) ||
+      payment.bookingId.toLowerCase().includes(query) ||
+      payment.visitor.toLowerCase().includes(query) ||
+      payment.transactionReference.toLowerCase().includes(query);
+    return matchesSearch &&
+      (paymentFilter === "All" || payment.status === paymentFilter);
+  });
 
   const confirmedCount = bookingRecords.filter(
     (item) => item.bookingStatus === "Confirmed"
@@ -165,32 +175,32 @@ export default function BookingsPage() {
     (item) => item.paymentStatus === "Pending"
   ).length;
 
-  const paidCount = bookingRecords.filter(
-    (item) => item.paymentStatus === "Paid"
+  const paidCount = payments.filter(
+    (payment) => payment.status === "Paid"
   ).length;
 
   const summaryCards = [
     {
       label: "Total Bookings",
-      value: bookingRecords.length,
+      value: loading ? "—" : bookingRecords.length,
       description: "All recorded bookings",
       color: "text-gray-900",
     },
     {
       label: "Confirmed Bookings",
-      value: confirmedCount,
+      value: loading ? "—" : confirmedCount,
       description: "Successfully confirmed",
       color: "text-green-600",
     },
     {
       label: "Pending Payments",
-      value: pendingPayments,
+      value: loading ? "—" : pendingPayments,
       description: "Awaiting payment confirmation",
       color: "text-yellow-600",
     },
     {
       label: "Successful Payments",
-      value: paidCount,
+      value: paymentsLoading ? "—" : paidCount,
       description: "Completed payment transactions",
       color: "text-gray-900",
     },
@@ -235,12 +245,6 @@ export default function BookingsPage() {
                 Montemaria
               </p>
             </div>
-          </div>
-
-          {/* SAMPLE DATA NOTICE */}
-          <div className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs text-gray-500">
-            Preview data only. Booking and payment records are not yet
-            connected to the database. Displayed amounts are illustrative.
           </div>
 
           {/* SUMMARY CARDS */}
@@ -327,7 +331,7 @@ export default function BookingsPage() {
                   type="text"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search booking ID, visitor, attraction..."
+                  placeholder="Search booking, visitor, attraction, or reference..."
                   className="w-full rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-700 outline-none transition focus:border-[#c1122f]"
                 />
               </div>
@@ -341,6 +345,7 @@ export default function BookingsPage() {
                 <option value="Confirmed">Confirmed</option>
                 <option value="Pending">Pending</option>
                 <option value="Cancelled">Cancelled</option>
+                <option value="Unknown">Unknown</option>
               </select>
 
               <select
@@ -421,7 +426,7 @@ export default function BookingsPage() {
                         </td>
 
                         <td className="px-5 py-5 text-sm font-semibold text-gray-700">
-                          {booking.guests}
+                          {booking.guests ?? "—"}
                         </td>
 
                         <td className="px-5 py-5">
@@ -475,44 +480,48 @@ export default function BookingsPage() {
                   </thead>
 
                   <tbody className="divide-y divide-gray-100">
-                    {filteredBookings.map((booking) => (
+                    {filteredPayments.map((payment) => (
                       <tr
-                        key={booking.id}
+                        key={payment.id}
                         className="transition hover:bg-gray-50/70"
                       >
                         <td className="px-5 py-5 text-sm font-semibold text-gray-600">
-                          {booking.transactionReference}
+                          {payment.transactionReference}
                         </td>
 
                         <td className="px-5 py-5 text-sm text-gray-600">
-                          {booking.id}
+                          {payment.bookingId}
                         </td>
 
                         <td className="px-5 py-5 text-sm font-semibold text-gray-900">
-                          {booking.visitor}
+                          {payment.visitor}
                         </td>
 
                         <td className="px-5 py-5 text-sm font-semibold text-gray-700">
-                          {peso(booking.amount)}
+                          {payment.amount === null ? "—" : peso(payment.amount)}
                         </td>
 
                         <td className="px-5 py-5 text-sm text-gray-600">
-                          {booking.paymentMethod}
+                          {payment.paymentMethod}
                         </td>
 
                         <td className="px-5 py-5">
-                          <StatusBadge status={booking.paymentStatus} />
+                          <StatusBadge status={payment.status} />
                         </td>
 
                         <td className="px-5 py-5">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedBooking(booking)}
-                            className="inline-flex items-center gap-2 text-sm font-semibold text-[#c1122f] hover:underline"
-                          >
-                            <Eye size={16} />
-                            View Details
-                          </button>
+                          {bookingsById.has(payment.bookingId) ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedBooking(bookingsById.get(payment.bookingId) ?? null)}
+                              className="inline-flex items-center gap-2 text-sm font-semibold text-[#c1122f] hover:underline"
+                            >
+                              <Eye size={16} />
+                              View Booking
+                            </button>
+                          ) : (
+                            <span className="text-sm text-gray-400">No linked booking</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -522,7 +531,15 @@ export default function BookingsPage() {
             )}
 
             {/* EMPTY STATE */}
-            {filteredBookings.length === 0 && (
+            {(activeTab === "bookings" ? loading : paymentsLoading) ? (
+              <p className="px-6 py-16 text-center text-sm text-gray-500">
+                Loading {activeTab === "bookings" ? "booking" : "payment"} records…
+              </p>
+            ) : (activeTab === "bookings" ? error : paymentsError) ? (
+              <p role="alert" className="px-6 py-16 text-center text-sm text-red-700">
+                {activeTab === "bookings" ? error : paymentsError}
+              </p>
+            ) : (activeTab === "bookings" ? filteredBookings.length === 0 : filteredPayments.length === 0) && (
               <div className="px-6 py-16 text-center">
                 <Search size={30} className="mx-auto text-gray-300" />
                 <h3
@@ -534,7 +551,9 @@ export default function BookingsPage() {
                   No records found
                 </h3>
                 <p className="mt-2 text-sm text-gray-500">
-                  Try changing your search term or filters.
+                  {(activeTab === "bookings" ? bookingRecords.length : paymentRecords.length) === 0
+                    ? `No ${activeTab === "bookings" ? "booking" : "payment"} records are available.`
+                    : "Try changing your search term or filters."}
                 </p>
               </div>
             )}
@@ -542,8 +561,8 @@ export default function BookingsPage() {
             {/* TABLE FOOTER */}
             <div className="border-t border-gray-100 bg-gray-50/50 px-6 py-4">
               <p className="text-xs text-gray-400">
-                Showing {filteredBookings.length} of{" "}
-                {bookingRecords.length} records
+                Showing {activeTab === "bookings" ? filteredBookings.length : filteredPayments.length} of{" "}
+                {activeTab === "bookings" ? bookingRecords.length : paymentRecords.length} records
               </p>
             </div>
           </section>
@@ -622,7 +641,7 @@ export default function BookingsPage() {
                   />
                   <Detail
                     label="Number of Guests"
-                    value={String(selectedBooking.guests)}
+                    value={selectedBooking.guests === null ? "—" : String(selectedBooking.guests)}
                   />
                   <Detail label="Date" value={selectedBooking.date} />
                   <Detail label="Time" value={selectedBooking.slot} />
@@ -649,7 +668,7 @@ export default function BookingsPage() {
                 <div className="grid grid-cols-2 gap-5 rounded-xl bg-gray-50 p-5">
                   <Detail
                     label="Payment Amount"
-                    value={peso(selectedBooking.amount)}
+                    value={selectedBooking.amount === null ? "—" : peso(selectedBooking.amount)}
                   />
                   <Detail
                     label="Payment Method"

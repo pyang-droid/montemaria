@@ -2,7 +2,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
 import AdminNav from "../AdminNav";
+import { db } from "../../lib/firebase";
+import { useLiveCollection } from "../../lib/firestore";
+import type { AttractionRecord } from "../../lib/models";
 import {
   Search,
   Eye,
@@ -18,81 +29,20 @@ import {
 
 type AttractionType = "Paid" | "Free";
 type AttractionStatus = "Open" | "Closed";
-type ModalMode = "view" | "edit";
+type ModalMode = "view" | "edit" | "create";
 
 interface Attraction {
-  id: number;
+  id: string;
   name: string;
   type: AttractionType;
   capacity: number;
+  currentVisitors: number | null;
+  timeSlots: { time: string; label: string }[];
   schedule: string;
   status: AttractionStatus;
   description: string;
   entranceFee: number | null;
 }
-
-const initialAttractions: Attraction[] = [
-  {
-    id: 1,
-    name: "Mirage Walk",
-    type: "Paid",
-    capacity: 20,
-    schedule: "8:00 AM - 5:00 PM",
-    status: "Open",
-    description: "",
-    entranceFee: null,
-  },
-  {
-    id: 2,
-    name: "View Deck",
-    type: "Paid",
-    capacity: 50,
-    schedule: "8:00 AM - 6:00 PM",
-    status: "Open",
-    description: "",
-    entranceFee: null,
-  },
-  {
-    id: 3,
-    name: "Glass Walk",
-    type: "Paid",
-    capacity: 15,
-    schedule: "9:00 AM - 5:00 PM",
-    status: "Open",
-    description: "",
-    entranceFee: null,
-  },
-  {
-    id: 4,
-    name: "Miracle Walk",
-    type: "Free",
-    capacity: 30,
-    schedule: "6:00 AM - 6:00 PM",
-    status: "Open",
-    description: "",
-    entranceFee: 0,
-  },
-  {
-    id: 5,
-    name: "Gate of the Archangels",
-    type: "Free",
-    capacity: 60,
-    schedule: "6:00 AM - 6:00 PM",
-    status: "Open",
-    description: "",
-    entranceFee: 0,
-  },
-  {
-    id: 6,
-    name: "Sto. Niño Chapel",
-    type: "Free",
-    capacity: 40,
-    schedule: "6:00 AM - 6:00 PM",
-    status: "Open",
-    description: "",
-    entranceFee: 0,
-  },
-];
 
 const moneyFormatter = new Intl.NumberFormat("en-PH", {
   style: "currency",
@@ -147,8 +97,23 @@ function TypeBadge({ type }: { type: AttractionType }) {
 }
 
 export default function AttractionsPage() {
-  const [attractions, setAttractions] =
-    useState<Attraction[]>(initialAttractions);
+  const { records, loading, error } =
+    useLiveCollection<AttractionRecord>("attractions");
+  const attractions: Attraction[] = records.map((record) => ({
+    id: record.id,
+    name: record.name,
+    type: record.type,
+    capacity: record.capacity,
+    currentVisitors:
+      typeof record.currentVisitors === "number" ? record.currentVisitors : null,
+    timeSlots: Array.isArray(record.timeSlots)
+      ? record.timeSlots.map(({ time, label }) => ({ time, label }))
+      : [],
+    schedule: record.schedule,
+    status: record.status,
+    description: record.description ?? "",
+    entranceFee: record.entranceFee ?? null,
+  }));
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -160,6 +125,7 @@ export default function AttractionsPage() {
   const [modalMode, setModalMode] = useState<ModalMode>("view");
   const [formError, setFormError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const totalAttractions = attractions.length;
 
@@ -289,7 +255,7 @@ export default function AttractionsPage() {
     setFormError("");
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!selectedAttraction) return;
 
     const name = selectedAttraction.name.trim();
@@ -325,6 +291,15 @@ export default function AttractionsPage() {
     }
 
     if (
+      selectedAttraction.timeSlots.some(
+        ({ time }) => !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)
+      )
+    ) {
+      setFormError("Booking times must use 24-hour HH:mm format.");
+      return;
+    }
+
+    if (
       selectedAttraction.type === "Paid" &&
       selectedAttraction.entranceFee !== null &&
       (!Number.isFinite(selectedAttraction.entranceFee) ||
@@ -334,30 +309,87 @@ export default function AttractionsPage() {
       return;
     }
 
-    const updatedAttraction: Attraction = {
+    const updatedAttraction = {
       ...selectedAttraction,
       name,
       schedule,
       description: selectedAttraction.description.trim(),
+      currentVisitors: selectedAttraction.currentVisitors,
       entranceFee:
         selectedAttraction.type === "Free"
           ? 0
           : selectedAttraction.entranceFee,
     };
 
-    setAttractions((previous) =>
-      previous.map((attraction) =>
-        attraction.id === updatedAttraction.id
-          ? updatedAttraction
-          : attraction
-      )
-    );
+    setSaving(true);
+    setFormError("");
+    try {
+      if (modalMode === "create") {
+        await addDoc(collection(db, "attractions"), {
+          name: updatedAttraction.name,
+          type: updatedAttraction.type,
+          capacity: updatedAttraction.capacity,
+          currentVisitors: 0,
+          schedule: updatedAttraction.schedule,
+          status: updatedAttraction.status,
+          description: updatedAttraction.description,
+          entranceFee: updatedAttraction.entranceFee,
+          timeSlots: updatedAttraction.timeSlots,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        await updateDoc(doc(db, "attractions", updatedAttraction.id), {
+          name: updatedAttraction.name,
+          type: updatedAttraction.type,
+          capacity: updatedAttraction.capacity,
+          schedule: updatedAttraction.schedule,
+          status: updatedAttraction.status,
+          description: updatedAttraction.description,
+          entranceFee: updatedAttraction.entranceFee,
+          timeSlots: updatedAttraction.timeSlots,
+          updatedAt: serverTimestamp(),
+        });
+      }
+      setSuccessMessage(`${updatedAttraction.name} was saved.`);
+      closeModal();
+    } catch (saveError) {
+      console.error("Unable to save attraction:", saveError);
+      setFormError("Unable to save this attraction. Check your access and try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
-    setSuccessMessage(
-      `${updatedAttraction.name} has been updated in this preview.`
-    );
+  async function handleDelete(attraction: Attraction) {
+    if (!window.confirm(`Delete "${attraction.name}"? This cannot be undone.`)) {
+      return;
+    }
 
-    closeModal();
+    try {
+      await deleteDoc(doc(db, "attractions", attraction.id));
+      setSuccessMessage(`${attraction.name} was deleted.`);
+    } catch (deleteError) {
+      console.error("Unable to delete attraction:", deleteError);
+      setFormError("Unable to delete this attraction. Check your access and try again.");
+    }
+  }
+
+  function openCreateModal() {
+    setSelectedAttraction({
+      id: "",
+      name: "",
+      type: "Paid",
+      capacity: 0,
+      currentVisitors: 0,
+      timeSlots: [],
+      schedule: "",
+      status: "Closed",
+      description: "",
+      entranceFee: null,
+    });
+    setModalMode("create");
+    setFormError("");
   }
 
   function clearFilters() {
@@ -397,13 +429,6 @@ export default function AttractionsPage() {
               Manage attraction information, visitor capacity,
               operating schedules, entrance fees, and availability.
             </p>
-          </div>
-
-          {/* SAMPLE DATA NOTICE */}
-          <div className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs leading-5 text-gray-500">
-            Preview data only. Attraction details, capacities,
-            schedules, and statuses are illustrative. Changes are
-            temporary and will reset when the page is refreshed.
           </div>
 
           {/* SUCCESS MESSAGE */}
@@ -531,6 +556,13 @@ export default function AttractionsPage() {
                   <RotateCcw size={15} />
                   Clear
                 </button>
+                <button
+                  type="button"
+                  onClick={openCreateModal}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#c1122f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#9e0e26]"
+                >
+                  Add Attraction
+                </button>
               </div>
             </div>
 
@@ -616,6 +648,13 @@ export default function AttractionsPage() {
                             <Pencil size={15} />
                             Edit
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDelete(attraction)}
+                            className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-700 hover:underline"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -624,7 +663,15 @@ export default function AttractionsPage() {
               </table>
             </div>
 
-            {filteredAttractions.length === 0 && (
+            {loading ? (
+              <p className="px-6 py-16 text-center text-sm text-gray-500">
+                Loading attractions…
+              </p>
+            ) : error ? (
+              <p role="alert" className="px-6 py-16 text-center text-sm text-red-700">
+                {error}
+              </p>
+            ) : filteredAttractions.length === 0 && (
               <div className="px-6 py-16 text-center">
                 <MapPin size={30} className="mx-auto text-gray-300" />
 
@@ -633,7 +680,9 @@ export default function AttractionsPage() {
                 </p>
 
                 <p className="mt-2 text-sm text-gray-500">
-                  Try changing your search or filters.
+                  {attractions.length === 0
+                    ? "No attractions have been added yet."
+                    : "Try changing your search or filters."}
                 </p>
 
                 <button
@@ -648,8 +697,7 @@ export default function AttractionsPage() {
 
             <div className="border-t border-gray-100 bg-gray-50/50 px-6 py-4">
               <p className="text-xs text-gray-400">
-                Showing {filteredAttractions.length} of{" "}
-                {attractions.length} attractions
+                Showing {filteredAttractions.length} of {attractions.length} attractions
               </p>
             </div>
           </section>
@@ -715,11 +763,13 @@ export default function AttractionsPage() {
                 >
                   {modalMode === "view"
                     ? "Attraction Details"
-                    : "Edit Attraction"}
+                    : modalMode === "create"
+                      ? "Add Attraction"
+                      : "Edit Attraction"}
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  {selectedAttraction.name}
+                  {selectedAttraction.name || "New attraction"}
                 </p>
               </div>
 
@@ -830,7 +880,7 @@ export default function AttractionsPage() {
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
-                  handleSave();
+                  void handleSave();
                 }}
                 className="space-y-5 p-6"
               >
@@ -984,6 +1034,30 @@ export default function AttractionsPage() {
 
                 <div>
                   <label
+                    htmlFor="attraction-time-slots"
+                    className="mb-2 block text-sm font-semibold text-gray-700"
+                  >
+                    Booking Times (24-hour)
+                  </label>
+                  <input
+                    id="attraction-time-slots"
+                    type="text"
+                    value={selectedAttraction.timeSlots.map(({ time }) => time).join(", ")}
+                    onChange={(event) => {
+                      const timeSlots = event.target.value
+                        .split(",")
+                        .map((time) => time.trim())
+                        .filter(Boolean)
+                        .map((time) => ({ time, label: time }));
+                      updateField("timeSlots", timeSlots);
+                    }}
+                    placeholder="08:00, 10:00"
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-[#c1122f]"
+                  />
+                </div>
+
+                <div>
+                  <label
                     htmlFor="attraction-status"
                     className="mb-2 block text-sm font-semibold text-gray-700"
                   >
@@ -1047,9 +1121,10 @@ export default function AttractionsPage() {
 
                   <button
                     type="submit"
-                    className="rounded-xl bg-[#c1122f] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#9e0e26]"
+                    disabled={saving}
+                    className="rounded-xl bg-[#c1122f] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#9e0e26] disabled:opacity-50"
                   >
-                    Save Changes
+                    {saving ? "Saving…" : modalMode === "create" ? "Create Attraction" : "Save Changes"}
                   </button>
                 </div>
               </form>

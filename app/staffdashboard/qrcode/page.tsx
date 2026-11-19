@@ -23,6 +23,8 @@ function QRCodeContent() {
   const staffName = accountData?.fullName || "Staff Officer";
 
   const {
+    attractionsLoading,
+    attractionsError,
     currentAttraction,
     scanMode,
     setScanMode,
@@ -141,6 +143,24 @@ function QRCodeContent() {
       log.ticketId.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesFilter && matchesSearch;
   });
+
+  if (!currentAttraction) {
+    return (
+      <>
+        <StaffNav />
+        <main className="min-h-screen bg-[#f5f5f7] px-5 pt-28">
+          <div className="mx-auto max-w-2xl rounded-3xl border border-black/[0.06] bg-white p-8 text-center shadow-sm">
+            <h1 className="text-2xl font-semibold text-[#1d1d1f]">No attraction assigned</h1>
+            <p role={attractionsError ? "alert" : undefined} className="mt-3 text-sm text-[#6e6e73]">
+              {attractionsLoading
+                ? "Loading attraction records…"
+                : attractionsError ?? "Add an attraction and assign this staff account before scanning tickets."}
+            </p>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   const successfulScans = logs.filter((l) => l.eventType === "ENTRY" || l.eventType === "EXIT").length;
   const failedScans = logs.filter((l) => l.eventType === "DENIED").length;

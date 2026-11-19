@@ -1,22 +1,82 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  EmailAuthProvider,
+  onAuthStateChanged,
+  reauthenticateWithCredential,
+  updatePassword,
+  type User,
+} from "firebase/auth";
+import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import DashboardNav from "../DashboardNav";
-import Image from "next/image";
+import { auth, db, storage } from "../../lib/firebase";
 
 export default function ProfilePage() {
+  const [user, setUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({
-    username: "johndoe",
-    firstName: "John",
-    lastName: "Doe",
-    mobileNumber: "+63 912 345 6789",
-    email: "john.doe@gmail.com",
+    username: "",
+    firstName: "",
+    lastName: "",
+    mobileNumber: "",
+    email: "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
 
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!active) return;
+      setUser(currentUser);
+      setLoading(true);
+      if (!currentUser) {
+        setFormData((previous) => ({ ...previous, email: "" }));
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const profileSnapshot = await getDoc(doc(db, "users", currentUser.uid));
+        if (!active) return;
+        if (!profileSnapshot.exists()) {
+          setError("Your account profile is missing from Firestore.");
+          setLoading(false);
+          return;
+        }
+        const profile = profileSnapshot.exists() ? profileSnapshot.data() : {};
+        setFormData((previous) => ({
+          ...previous,
+          username: typeof profile.username === "string" ? profile.username : "",
+          firstName: typeof profile.firstName === "string" ? profile.firstName : "",
+          lastName: typeof profile.lastName === "string" ? profile.lastName : "",
+          mobileNumber: typeof profile.mobileNumber === "string" ? profile.mobileNumber : "",
+          email: currentUser.email ?? "",
+        }));
+        setProfileImage(typeof profile.photoURL === "string" ? profile.photoURL : null);
+      } catch (loadError) {
+        console.error("Unable to load account profile:", loadError);
+        if (active) setError("Unable to load your profile. Check your connection and permissions.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -25,37 +85,100 @@ export default function ProfilePage() {
     });
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfileImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Profile updated:", formData);
-    alert("Profile updated successfully!");
-  };
-
-  const handlePasswordChange = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (formData.newPassword !== formData.confirmPassword) {
-      alert("New passwords do not match!");
+    if (!file) return;
+    if (!user) {
+      setError("Sign in to upload a profile photo.");
       return;
     }
-    console.log("Password change requested");
-    alert("Password updated successfully!");
-    setFormData({
-      ...formData,
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    });
+    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
+      setError("Choose an image file no larger than 5 MB.");
+      return;
+    }
+
+    setUploadingImage(true);
+    setError("");
+    setSuccess("");
+    try {
+      const fileRef = ref(storage, `users/${user.uid}/profile/${Date.now()}-${file.name}`);
+      const snapshot = await uploadBytes(fileRef, file);
+      const photoURL = await getDownloadURL(snapshot.ref);
+      await updateDoc(doc(db, "users", user.uid), {
+        photoURL,
+        updatedAt: serverTimestamp(),
+      });
+      setProfileImage(photoURL);
+      setSuccess("Profile photo updated.");
+    } catch (uploadError) {
+      console.error("Unable to upload profile photo:", uploadError);
+      setError("Unable to upload the profile photo. Check your access and try again.");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      setError("Sign in to update your profile.");
+      return;
+    }
+    setSavingProfile(true);
+    setError("");
+    setSuccess("");
+    try {
+      await updateDoc(doc(db, "users", user.uid), {
+        username: formData.username.trim(),
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        mobileNumber: formData.mobileNumber.trim(),
+        updatedAt: serverTimestamp(),
+      });
+      setSuccess("Profile updated successfully.");
+    } catch (saveError) {
+      console.error("Unable to update profile:", saveError);
+      setError("Unable to update your profile. Check your connection and permissions.");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.email) {
+      setError("A password change is only available for email/password accounts.");
+      return;
+    }
+    if (formData.newPassword.length < 6) {
+      setError("The new password must be at least 6 characters long.");
+      return;
+    }
+    if (formData.newPassword !== formData.confirmPassword) {
+      setError("New passwords do not match.");
+      return;
+    }
+
+    setSavingPassword(true);
+    setError("");
+    setSuccess("");
+    try {
+      const credential = EmailAuthProvider.credential(user.email, formData.currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, formData.newPassword);
+      setSuccess("Password updated successfully.");
+      setFormData((previous) => ({
+        ...previous,
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      }));
+    } catch (passwordError) {
+      console.error("Unable to update password:", passwordError);
+      setError("Unable to update the password. Recheck your current password and try again.");
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   return (
@@ -78,6 +201,21 @@ export default function ProfilePage() {
               Manage your account settings
             </p>
           </div>
+
+          {(error || success) && (
+            <p role={error ? "alert" : "status"} className={`mb-6 rounded-xl border p-4 text-sm ${error ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"}`}>
+              {error || success}
+            </p>
+          )}
+
+          {loading ? (
+            <div className="rounded-2xl border border-gray-100 bg-white p-8 text-center text-sm text-gray-500">Loading your profile…</div>
+          ) : !user ? (
+            <div className="rounded-2xl border border-gray-100 bg-white p-8 text-center text-sm text-gray-600">
+              Sign in to manage your profile.
+            </div>
+          ) : (
+          <>
 
           {/* Profile Picture Section */}
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 mb-6">
@@ -107,20 +245,21 @@ export default function ProfilePage() {
                   className="px-6 py-3 bg-brand-red text-white rounded-lg font-medium hover:bg-brand-red-dark transition-all cursor-pointer inline-block"
                   style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
-                  Upload Photo
+                  {uploadingImage ? "Uploading…" : "Upload Photo"}
                 </label>
                 <input
                   id="profile-upload"
                   type="file"
                   accept="image/*"
                   onChange={handleImageUpload}
+                  disabled={uploadingImage}
                   className="hidden"
                 />
                 <p
                   className="text-sm text-gray-500 mt-2"
                   style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 >
-                  JPG, PNG or GIF. Max size 5MB.
+                  JPG, PNG or GIF. Max size 5 MB.
                 </p>
               </div>
             </div>
@@ -219,18 +358,23 @@ export default function ProfilePage() {
                   type="email"
                   name="email"
                   value={formData.email}
-                  onChange={handleChange}
+                  disabled
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none"
                   style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 />
               </div>
 
+              <p className="text-xs text-gray-500">
+                Email is managed by Firebase Authentication and cannot be changed here.
+              </p>
+
               <button
                 type="submit"
+                disabled={savingProfile}
                 className="w-full py-3 bg-brand-red text-white rounded-lg font-medium hover:bg-brand-red-dark transition-all"
                 style={{ fontFamily: "var(--font-montemaria-sans)" }}
               >
-                Save Changes
+                {savingProfile ? "Saving…" : "Save Changes"}
               </button>
             </form>
           </div>
@@ -256,6 +400,7 @@ export default function ProfilePage() {
                   name="currentPassword"
                   value={formData.currentPassword}
                   onChange={handleChange}
+                  required
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none"
                   style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 />
@@ -272,6 +417,7 @@ export default function ProfilePage() {
                   name="newPassword"
                   value={formData.newPassword}
                   onChange={handleChange}
+                  required
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none"
                   style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 />
@@ -288,19 +434,23 @@ export default function ProfilePage() {
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange}
+                  required
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none"
                   style={{ fontFamily: "var(--font-montemaria-sans)" }}
                 />
               </div>
               <button
                 type="submit"
+                disabled={savingPassword}
                 className="w-full py-3 bg-brand-red text-white rounded-lg font-medium hover:bg-brand-red-dark transition-all"
                 style={{ fontFamily: "var(--font-montemaria-sans)" }}
               >
-                Update Password
+                {savingPassword ? "Updating…" : "Update Password"}
               </button>
             </form>
           </div>
+          </>
+          )}
         </div>
       </div>
     </>

@@ -1,46 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Montemaria
 
-## Getting Started
+Montemaria is a Next.js application using Firebase Authentication, Cloud Firestore, and Firebase Storage. The client connects to the existing Firebase project (`monte-maria`) using the public web-app configuration; no Firebase Admin credentials belong in the browser.
 
-First, run the development server:
+## Local development
+
+1. Enable Email/Password sign-in in Firebase Authentication.
+2. Copy `.env.example` to `.env.local` and fill in the Firebase Web App configuration from the existing Firebase project:
+
+   ```powershell
+   Copy-Item .env.example .env.local
+   ```
+
+   Required variables are `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, and `NEXT_PUBLIC_FIREBASE_APP_ID`. `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` is optional.
+3. Install dependencies and start the application:
+
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+The Firebase web configuration is public client configuration, not an authorization boundary. Firestore and Storage rules enforce access. Never put service-account keys or Firebase Admin credentials in `NEXT_PUBLIC_*` variables.
+
+## Firestore data model
+
+The application does not seed demonstration records. An empty collection is shown as an empty state; populate the existing project only with verified operational records.
+
+| Collection | Purpose and core fields |
+| --- | --- |
+| `users/{uid}` | Auth profile: `email`, `role` (`visitor`, `staff`, `tourism`, or `admin`), `status` (`Active`/`Inactive`), optional name/contact/photo fields. Public sign-up can create only an active `visitor`. |
+| `attractions/{id}` | Public attraction catalog: `name`, `type` (`Paid`/`Free`), positive integer `capacity`, integer `currentVisitors`, `schedule`, `status` (`Open`/`Closed`), `description`, `entranceFee`, and optional presentation fields. `timeSlots` is an array of `{ time: "HH:mm", label: string }`. |
+| `bookings/{id}` | Visitor booking: `userId`, attraction ID/name, booking date/time, positive `numberOfVisitors`, `amount`, `status`, and `paymentStatus`. A client can create only a pending booking; trusted payment confirmation and ticket issuance must happen on a configured backend. |
+| `payments/{id}` | Trusted payment records. Client writes are denied. Include `userId`, `bookingId`, `status`, `amount`, payment method/reference, and timestamps when a trusted payment integration is implemented. |
+| `visitorLogs/{id}` | Staff-created audit events: booking/ticket, attraction, `eventType` (`ENTRY`, `EXIT`, or `DENIED`), party size, staff identity, and server timestamp. |
+| `staffAssignments/{uid}` | Admin-managed staff assignment: `attractionId`, `attractionName`, and `active`. The document ID is the staff user's Firebase Auth UID. |
+
+Provision staff and tourism administrator roles and assignment documents using a trusted administrator workflow. Do not grant roles through public sign-up or client writes. Review existing `users` records for any legacy privileged roles before deploying the rules.
+
+## Security rules and indexes
+
+Review the rules and schema against the existing project before deployment. From an authenticated Firebase CLI session, deploy rules and indexes to the existing project:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+firebase deploy --only firestore:rules,firestore:indexes,storage --project monte-maria
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The rules restrict profile access, staff operations to assigned attractions, and payments to trusted backend writes. The included composite indexes support booking activity, ticket verification, and the admission desk. Do not deploy permissive rules to make the UI appear populated.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Payments and ticket issuance
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Paid checkout, payment confirmation, and ticket-code issuance are intentionally unavailable until a payment gateway and a trusted server-side integration are configured. The application does not create fake payment records or ticket codes. Client-created bookings remain pending and cannot be admitted by staff.
 
-## Firebase account roles
+## Production deployment
 
-Public account creation assigns every new account the `visitor` role. Staff and Tourism Admin roles must be provisioned by an administrator; they cannot be selected during sign-up. Deploy the Firestore rules before relying on this restriction:
+This application uses the Next.js App Router and server-rendered hosting, so deploy it to a Next.js-compatible host such as Vercel. Add the required Firebase web configuration as deployment environment variables, deploy Firestore/Storage rules and indexes, enable the intended Firebase Authentication provider, and configure the production domain in Firebase Authentication. Firebase Hosting static hosting is not configured for this server-rendered application.
 
-```bash
-firebase deploy --only firestore:rules --project monte-maria
-```
-
-Review existing `users` documents in Firestore and remove any Staff/Admin roles that were granted through the previous email-based sign-up behavior.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Before launch, test with the Firebase Emulator Suite or a non-production Firebase project, verify that role documents and attraction assignments are correct, and confirm the production domain and Firebase rules. No Firebase project data is seeded or modified by this repository setup.

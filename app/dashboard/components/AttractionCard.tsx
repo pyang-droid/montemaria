@@ -2,24 +2,23 @@
 "use client";
 
 export interface Attraction {
-  id: number;
+  id: string;
   name: string;
-  tagline: string;
+  tagline?: string;
   description: string;
-  fullDescription: string;
+  fullDescription?: string;
   price: number | null;
-  duration: string;
-  currentVisitors: number;
-  maxCapacity: number;
+  duration?: string;
+  currentVisitors: number | null;
+  maxCapacity: number | null;
   timeSlots: {
     time: string;
     label: string;
-    reserved: number;
   }[];
-  img: string;
-  badge: string;
+  img?: string;
+  badge?: string;
   type: "paid" | "free";
-  highlights: string[];
+  highlights?: string[];
 }
 
 interface AttractionCardProps {
@@ -34,19 +33,18 @@ export default function AttractionCard({
   const capacity = attraction.maxCapacity;
 
   const occupancy =
-    capacity > 0
+    capacity !== null && capacity > 0 && attraction.currentVisitors !== null
       ? Math.min(
           Math.round(
-            (attraction.currentVisitors / capacity) * 100
+            ((attraction.currentVisitors ?? 0) / capacity) * 100
           ),
           100
         )
       : 0;
 
-  const available = Math.max(
-    capacity - attraction.currentVisitors,
-    0
-  );
+  const available = attraction.currentVisitors === null || capacity === null
+    ? null
+    : Math.max(capacity - attraction.currentVisitors, 0);
 
   return (
     <article
@@ -54,17 +52,23 @@ export default function AttractionCard({
       className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-gray-100 cursor-pointer"
     >
       <div className="relative h-48 overflow-hidden">
-        <img
-          src={attraction.img}
-          alt={attraction.name}
-          className="block w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-        />
+        {attraction.img ? (
+          <img
+            src={attraction.img}
+            alt={attraction.name}
+            className="block w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+          />
+        ) : (
+          <div className="h-full w-full bg-gradient-to-br from-gray-100 to-gray-300" />
+        )}
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
 
-        <span className="absolute top-3 left-3 bg-gray-800/90 text-white text-xs px-3 py-1.5 rounded-full font-medium">
-          {attraction.badge}
-        </span>
+        {attraction.badge && (
+          <span className="absolute top-3 left-3 bg-gray-800/90 text-white text-xs px-3 py-1.5 rounded-full font-medium">
+            {attraction.badge}
+          </span>
+        )}
 
         <span
           className={`absolute top-3 right-3 text-white text-xs px-3 py-1.5 rounded-full font-medium ${
@@ -74,7 +78,9 @@ export default function AttractionCard({
           }`}
         >
           {attraction.type === "paid"
-            ? `₱${attraction.price}`
+            ? attraction.price === null
+              ? "Price not set"
+              : `₱${attraction.price}`
             : "FREE"}
         </span>
       </div>
@@ -93,22 +99,24 @@ export default function AttractionCard({
           className="text-gray-600 text-xs leading-relaxed line-clamp-2 mb-4"
           style={{ fontFamily: "var(--font-montemaria-sans)" }}
         >
-          {attraction.description}
+          {attraction.description || "No description provided."}
         </p>
 
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-gray-500">
-            Currently Inside
+            {attraction.currentVisitors === null || capacity === null ? "Occupancy unavailable" : "Currently Inside"}
           </span>
 
           <span
             className={`text-xs font-bold ${
+              attraction.currentVisitors !== null &&
+              capacity !== null &&
               attraction.currentVisitors >= capacity
                 ? "text-red-600"
                 : "text-gray-700"
             }`}
           >
-            {attraction.currentVisitors} / {capacity}
+            {attraction.currentVisitors === null || capacity === null ? "—" : `${attraction.currentVisitors} / ${capacity}`}
           </span>
         </div>
 
@@ -126,12 +134,10 @@ export default function AttractionCard({
         </div>
 
         <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>⏱ {attraction.duration}</span>
+          <span>{attraction.duration ? `⏱ ${attraction.duration}` : ""}</span>
 
           <span>
-            {available > 0
-              ? `${available} available`
-              : "Full"}
+            {available === null ? "Availability unavailable" : available > 0 ? `${available} available` : "Full"}
           </span>
         </div>
       </div>

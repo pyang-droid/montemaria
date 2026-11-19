@@ -12,7 +12,8 @@ import type {
 } from "./BookingModal";
 
 export async function getDailyBookingActivity(
-  date: string
+  date: string,
+  userId: string
 ): Promise<DailyBookingActivity> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new Error("Invalid booking date.");
@@ -22,6 +23,7 @@ export async function getDailyBookingActivity(
 
   const bookingsQuery = query(
     bookingsRef,
+    where("userId", "==", userId),
     where("bookingDate", "==", date),
     where("status", "==", "confirmed")
   );

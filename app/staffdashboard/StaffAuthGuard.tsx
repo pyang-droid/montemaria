@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import { getAccountRole } from "../lib/loginRouting";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../lib/firebase";
 import {
   ShieldAlert,
   ArrowRight,
@@ -39,31 +41,13 @@ interface StaffAuthContextType {
 
 const StaffAuthContext = createContext<StaffAuthContextType | undefined>(undefined);
 
-const DEMO_STAFF_ACCOUNTS: Record<string, Partial<StaffAccountData>> = {
-  "staff@montemaria.com": {
-    fullName: "Mark Garcia",
-    employeeId: "STF-1004",
-    role: "Staff",
-    assignedAttraction: "Mirage Walk",
-    shift: "Morning Shift (08:00 AM - 04:00 PM)",
-    status: "On-Duty",
-  },
-  "tourism@gmail.com": {
-    fullName: "Tourism Administrator",
-    employeeId: "ADM-9001",
-    role: "Tourism",
-    assignedAttraction: "All Attractions (Supervisor)",
-    shift: "Administrative Shift (08:00 AM - 05:00 PM)",
-    status: "On-Duty",
-  },
-};
-
 export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<StaffRole>("Unknown");
   const [accountData, setAccountData] = useState<StaffAccountData | null>(null);
-  const [assignedAttraction, setAssignedAttraction] = useState<string>("Mirage Walk");
+  const [assignedAttraction, setAssignedAttraction] = useState<string>("");
+  const [authError, setAuthError] = useState("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -77,7 +61,6 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setUser(currentUser);
-      const email = currentUser.email?.toLowerCase() || "";
       let detectedRole: StaffRole = "Visitor";
 
       try {
@@ -87,33 +70,55 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
         } else if (docRole === "staff") {
           detectedRole = "Staff";
         }
+        const [profileSnapshot, assignmentSnapshot] = await Promise.all([
+          getDoc(doc(db, "users", currentUser.uid)),
+          getDoc(doc(db, "staffAssignments", currentUser.uid)),
+        ]);
+        if (!profileSnapshot.exists()) {
+          setRole("Unknown");
+          setAccountData(null);
+          setAssignedAttraction("");
+          setAuthError("Your account profile is missing from Firestore.");
+          setIsLoading(false);
+          return;
+        }
+        const profile = profileSnapshot.data();
+        const assignment = assignmentSnapshot.exists()
+          ? assignmentSnapshot.data()
+          : null;
+        const assignmentName =
+          detectedRole === "Tourism"
+            ? "All Attractions (Supervisor)"
+            : assignment?.active === true
+              ? String(assignment.attractionName ?? "")
+              : "";
+        const name = [profile.firstName, profile.lastName]
+          .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+          .join(" ");
+        const staffAccount: StaffAccountData = {
+          uid: currentUser.uid,
+          email: currentUser.email || "",
+          fullName: name || currentUser.displayName || currentUser.email || "",
+          role: detectedRole,
+          employeeId: typeof profile.employeeId === "string" ? profile.employeeId : "—",
+          assignedAttraction: assignmentName,
+          shift: typeof assignment?.shift === "string" ? assignment.shift : "—",
+          status: profile.status === "Inactive" ? "Inactive" : "Active",
+        };
+
+        setRole(detectedRole);
+        setAccountData(staffAccount);
+        setAssignedAttraction(assignmentName);
+        setAuthError("");
       } catch (err) {
-        console.warn("Could not fetch user document from Firestore:", err);
+        console.error("Could not load the staff account from Firestore:", err);
+        setRole("Unknown");
+        setAccountData(null);
+        setAssignedAttraction("");
+        setAuthError("Unable to load your staff account. Check your connection and permissions.");
+      } finally {
+        setIsLoading(false);
       }
-
-      setRole(detectedRole);
-
-      // Build staff account profile
-      const demoPreset = DEMO_STAFF_ACCOUNTS[email];
-      const staffAccount: StaffAccountData = {
-        uid: currentUser.uid,
-        email: currentUser.email || "",
-        fullName:
-          demoPreset?.fullName ||
-          currentUser.displayName ||
-          (detectedRole === "Tourism" ? "Tourism Administrator" : "Operations Staff"),
-        role: detectedRole,
-        employeeId: demoPreset?.employeeId || (detectedRole === "Tourism" ? "ADM-9001" : `STF-${currentUser.uid.slice(0, 4).toUpperCase()}`),
-        assignedAttraction: demoPreset?.assignedAttraction || "Mirage Walk",
-        shift: demoPreset?.shift || "Morning Shift (08:00 AM - 04:00 PM)",
-        status: "On-Duty",
-      };
-
-      setAccountData(staffAccount);
-      if (staffAccount.assignedAttraction) {
-        setAssignedAttraction(staffAccount.assignedAttraction);
-      }
-      setIsLoading(false);
     });
 
     return () => unsubscribe();
@@ -150,7 +155,7 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
           Verifying Staff Clearance
         </h2>
         <p className="text-sm text-[#86868b] mt-1">
-          Synchronizing credentials with Manage Accounts (1.0)...
+          Synchronizing credentials with Firebase…
         </p>
       </div>
     );
@@ -166,7 +171,7 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
           className="h-16 w-16 object-contain mb-4 animate-pulse"
         />
         <p className="text-sm text-[#86868b]">
-          Returning to the Montemaria homepage...
+          {authError || "Returning to the Montemaria homepage…"}
         </p>
       </div>
     );

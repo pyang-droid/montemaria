@@ -9,7 +9,7 @@ import type { Attraction } from "./AttractionCard";
 // ============================================
 
 export interface BookingDetails {
-  attractionId: number;
+  attractionId: string;
   attractionName: string;
   bookingDate: string;
   bookingTime: string;
@@ -27,17 +27,10 @@ interface BookingModalProps {
   attraction: Attraction;
   onClose: () => void;
   onProceedToPayment: (booking: BookingDetails) => void;
-
-  // Connect this to Firebase when the
-  // booking database is ready.
   getDailyBookingActivity?: (
     date: string
   ) => Promise<DailyBookingActivity>;
 }
-
-// Advisory threshold only.
-// This is NOT a booking limit.
-const HIGH_BOOKING_THRESHOLD = 80;
 
 // ============================================
 // DATE HELPER
@@ -99,18 +92,16 @@ export default function BookingModal({
   const [activityError, setActivityError] =
     useState("");
 
-  const [advisoryChoice, setAdvisoryChoice] =
-    useState<"continue" | "change" | null>(null);
-
   const [activityRequest, setActivityRequest] =
     useState(0);
 
   const today = getLocalDateString(new Date());
 
-  const pricePerPerson = attraction.price ?? 0;
+  const pricePerPerson = attraction.price;
 
-  const totalAmount =
-    pricePerPerson * numberOfVisitors;
+  const totalAmount = pricePerPerson === null
+    ? null
+    : pricePerPerson * numberOfVisitors;
 
   // ============================================
   // FETCH DAILY BOOKING ACTIVITY
@@ -119,21 +110,7 @@ export default function BookingModal({
   useEffect(() => {
     let cancelled = false;
 
-    if (!bookingDate) {
-      setDailyActivity(null);
-      setLoadingActivity(false);
-      setActivityError("");
-      return;
-    }
-
-    if (!getDailyBookingActivity) {
-      setDailyActivity(null);
-      setLoadingActivity(false);
-      setActivityError(
-        "Daily booking activity is not yet connected to Firebase."
-      );
-      return;
-    }
+    if (!bookingDate || !getDailyBookingActivity) return;
 
     const loadActivity = async () => {
       setLoadingActivity(true);
@@ -187,11 +164,13 @@ export default function BookingModal({
   // ============================================
 
   const bookedVisitors =
-    dailyActivity?.bookedVisitors ?? null;
-
-  const isHighBookingActivity =
-    bookedVisitors !== null &&
-    bookedVisitors >= HIGH_BOOKING_THRESHOLD;
+    bookingDate && getDailyBookingActivity
+      ? dailyActivity?.bookedVisitors ?? null
+      : null;
+  const visibleActivityError =
+    bookingDate && !getDailyBookingActivity
+      ? "Daily booking activity is unavailable."
+      : activityError;
 
   // ============================================
   // SELECTED TIME SLOT
@@ -208,7 +187,6 @@ export default function BookingModal({
   const handleDateChange = (date: string) => {
     setBookingDate(date);
     setBookingTime("");
-    setAdvisoryChoice(null);
     setDailyActivity(null);
   };
 
@@ -234,21 +212,16 @@ export default function BookingModal({
       return;
     }
 
+    if (pricePerPerson === null || totalAmount === null) {
+      alert("The attraction price is not available. Please contact the tourism office.");
+      return;
+    }
+
     if (
       !Number.isInteger(numberOfVisitors) ||
       numberOfVisitors < 1
     ) {
       alert("Please enter a valid number of visitors.");
-      return;
-    }
-
-    if (
-      isHighBookingActivity &&
-      advisoryChoice !== "continue"
-    ) {
-      alert(
-        "Please choose whether to continue with your selected date or change your booking date."
-      );
       return;
     }
 
@@ -370,20 +343,20 @@ export default function BookingModal({
                   </div>
 
                   <div className="p-5">
-                    {loadingActivity ? (
+                    {loadingActivity && getDailyBookingActivity ? (
                       <p
                         className="text-sm text-gray-500"
                         role="status"
                       >
                         Loading booking activity...
                       </p>
-                    ) : activityError ? (
+                    ) : visibleActivityError ? (
                       <div className="space-y-3">
                         <p
                           className="text-sm text-amber-700"
                           role="status"
                         >
-                          {activityError}
+                          {visibleActivityError}
                         </p>
 
                         {getDailyBookingActivity && (
@@ -410,20 +383,9 @@ export default function BookingModal({
                           </p>
 
                           <p className="text-xs text-gray-500 mt-1">
-                            Confirmed visitors booked
-                            for this date
+                            Visitors in your confirmed bookings for this date
                           </p>
                         </div>
-
-                        {isHighBookingActivity ? (
-                          <span className="shrink-0 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-3 py-2">
-                            High Activity
-                          </span>
-                        ) : (
-                          <span className="shrink-0 rounded-full bg-green-100 text-green-800 text-xs font-semibold px-3 py-2">
-                            Normal Activity
-                          </span>
-                        )}
                       </div>
                     ) : (
                       <p className="text-sm text-gray-500">
@@ -434,100 +396,6 @@ export default function BookingModal({
                   </div>
                 </div>
 
-                {/* ====================================
-                    BOOKING ADVISORY
-                ==================================== */}
-                {isHighBookingActivity && (
-                  <div className="border border-amber-200 bg-amber-50 rounded-2xl p-5">
-                    <div className="flex gap-3">
-                      <span className="text-amber-700 text-xl">
-                        !
-                      </span>
-
-                      <div className="flex-1">
-                        <h4 className="font-bold text-amber-900 mb-2">
-                          Booking Advisory
-                        </h4>
-
-                        <p className="text-sm text-amber-800 leading-6">
-                          A high number of visitors
-                          have already booked for{" "}
-                          {formatDate(bookingDate)}.
-                          You may continue with your
-                          reservation or choose
-                          another date for a
-                          potentially less busy
-                          experience.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 space-y-3">
-                      <label className="flex items-center gap-3 text-sm text-gray-800 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="advisory-choice"
-                          checked={
-                            advisoryChoice ===
-                            "continue"
-                          }
-                          onChange={() =>
-                            setAdvisoryChoice(
-                              "continue"
-                            )
-                          }
-                          className="accent-gray-800"
-                        />
-
-                        Continue with selected date
-                      </label>
-
-                      <label className="flex items-center gap-3 text-sm text-gray-800 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="advisory-choice"
-                          checked={
-                            advisoryChoice ===
-                            "change"
-                          }
-                          onChange={() =>
-                            setAdvisoryChoice(
-                              "change"
-                            )
-                          }
-                          className="accent-gray-800"
-                        />
-
-                        Choose another date
-                      </label>
-                    </div>
-
-                    {advisoryChoice === "change" && (
-                      <div className="mt-4 rounded-xl bg-white border border-amber-200 p-4">
-                        <p className="text-sm text-gray-700 mb-3">
-                          Select another date above
-                          to view its booking
-                          activity.
-                        </p>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleDateChange("");
-                            document
-                              .getElementById(
-                                "booking-date"
-                              )
-                              ?.focus();
-                          }}
-                          className="text-sm font-semibold text-gray-900 underline"
-                        >
-                          Change Booking Date
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
               </section>
             )}
 
@@ -653,9 +521,7 @@ export default function BookingModal({
                   </span>
 
                   <span className="font-medium text-gray-900">
-                    ₱{pricePerPerson.toLocaleString(
-                      "en-PH"
-                    )}
+                    {pricePerPerson === null ? "Unavailable" : `₱${pricePerPerson.toLocaleString("en-PH")}`}
                   </span>
                 </div>
 
@@ -675,9 +541,7 @@ export default function BookingModal({
                   </span>
 
                   <span className="text-xl font-bold text-gray-900">
-                    ₱{totalAmount.toLocaleString(
-                      "en-PH"
-                    )}
+                    {totalAmount === null ? "—" : `₱${totalAmount.toLocaleString("en-PH")}`}
                   </span>
                 </div>
               </div>
@@ -691,15 +555,13 @@ export default function BookingModal({
               disabled={
                 !bookingDate ||
                 !selectedSlot ||
+                pricePerPerson === null ||
                 !Number.isInteger(
                   numberOfVisitors
                 ) ||
                 numberOfVisitors < 1 ||
                 loadingActivity ||
-                (
-                  isHighBookingActivity &&
-                  advisoryChoice !== "continue"
-                )
+                !!visibleActivityError
               }
               className="w-full py-4 bg-gray-800 text-white rounded-xl font-semibold hover:bg-gray-900 transition-all disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
             >

@@ -2,7 +2,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { deleteDoc, doc, serverTimestamp, setDoc } from "firebase/firestore";
 import AdminNav from "../AdminNav";
+import { db } from "../../lib/firebase";
+import { useLiveCollection } from "../../lib/firestore";
+import type { AttractionRecord, StaffAssignmentRecord, UserRecord } from "../../lib/models";
 import {
   Search,
   Plus,
@@ -20,53 +24,9 @@ interface StaffMember {
   name: string;
   email: string;
   attraction: string | null;
+  attractionId: string | null;
   assignmentDate: string | null;
 }
-
-const attractions = [
-  "Mirage Walk",
-  "View Deck",
-  "Glass Walk",
-  "Mirror Walk",
-];
-
-const initialStaff: StaffMember[] = [
-  {
-    id: "STF-1001",
-    name: "Mark Anthony Reyes",
-    email: "mark.reyes@example.com",
-    attraction: "Mirage Walk",
-    assignmentDate: "2026-09-25",
-  },
-  {
-    id: "STF-1002",
-    name: "Jessica Mendoza",
-    email: "jessica.mendoza@example.com",
-    attraction: "View Deck",
-    assignmentDate: "2026-09-26",
-  },
-  {
-    id: "STF-1003",
-    name: "Daniel Cruz",
-    email: "daniel.cruz@example.com",
-    attraction: "Glass Walk",
-    assignmentDate: "2026-09-27",
-  },
-  {
-    id: "STF-1004",
-    name: "Angela Santos",
-    email: "angela.santos@example.com",
-    attraction: null,
-    assignmentDate: null,
-  },
-  {
-    id: "STF-1005",
-    name: "Paolo Garcia",
-    email: "paolo.garcia@example.com",
-    attraction: null,
-    assignmentDate: null,
-  },
-];
 
 function formatDate(date: string | null) {
   if (!date) return "—";
@@ -82,7 +42,38 @@ function formatDate(date: string | null) {
 }
 
 export default function StaffAssignmentsPage() {
-  const [staff, setStaff] = useState<StaffMember[]>(initialStaff);
+  const { records: users, loading: usersLoading, error: usersError } =
+    useLiveCollection<UserRecord>("users");
+  const { records: assignmentRecords, loading: assignmentsLoading, error: assignmentsError } =
+    useLiveCollection<StaffAssignmentRecord>("staffAssignments");
+  const { records: attractionRecords, loading: attractionsLoading, error: attractionsError } =
+    useLiveCollection<AttractionRecord>("attractions");
+  const attractions = attractionRecords.map((record) => ({ id: record.id, name: record.name }));
+  const staff = users
+    .filter((user) => user.role === "staff")
+    .map((user) => {
+      const assignment = assignmentRecords.find((record) => record.id === user.id && record.active !== false);
+      const attraction = assignment
+        ? attractionRecords.find((record) => record.id === assignment.attractionId)
+        : undefined;
+      const assignmentDate =
+        typeof assignment?.assignedAt === "string"
+          ? assignment.assignedAt
+          : assignment?.assignedAt &&
+              typeof assignment.assignedAt === "object" &&
+              "toDate" in assignment.assignedAt &&
+              typeof assignment.assignedAt.toDate === "function"
+            ? assignment.assignedAt.toDate().toISOString().slice(0, 10)
+            : null;
+      return {
+        id: user.id,
+        name: [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || user.email,
+        email: user.email,
+        attraction: attraction?.name ?? assignment?.attractionName ?? null,
+        attractionId: assignment?.attractionId ?? null,
+        assignmentDate,
+      };
+    });
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [attractionFilter, setAttractionFilter] = useState("All");
@@ -94,6 +85,8 @@ export default function StaffAssignmentsPage() {
   const [removeTarget, setRemoveTarget] = useState<StaffMember | null>(
     null
   );
+  const [actionError, setActionError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const selectedStaff = staff.find(
     (member) => member.id === selectedStaffId
@@ -160,51 +153,53 @@ export default function StaffAssignmentsPage() {
 
   function openAssignModal(member?: StaffMember) {
     setSelectedStaffId(member?.id ?? "");
-    setSelectedAttraction(member?.attraction ?? "");
+    setSelectedAttraction(member?.attractionId ?? "");
     setModalOpen(true);
   }
 
-  function saveAssignment() {
+  async function saveAssignment() {
     if (!selectedStaffId || !selectedAttraction) return;
+    const attraction = attractionRecords.find((record) => record.id === selectedAttraction);
+    if (!attraction) {
+      setActionError("Select an attraction that exists in Firestore.");
+      return;
+    }
 
-    const today = new Date().toISOString().slice(0, 10);
-
-    setStaff((previous) =>
-      previous.map((member) =>
-        member.id === selectedStaffId
-          ? {
-              ...member,
-              attraction: selectedAttraction,
-              assignmentDate:
-                member.attraction === selectedAttraction
-                  ? member.assignmentDate ?? today
-                  : today,
-            }
-          : member
-      )
-    );
-
-    setModalOpen(false);
-    setSelectedStaffId("");
-    setSelectedAttraction("");
+    setSaving(true);
+    setActionError("");
+    try {
+      await setDoc(
+        doc(db, "staffAssignments", selectedStaffId),
+        {
+          userId: selectedStaffId,
+          attractionId: attraction.id,
+          attractionName: attraction.name,
+          active: true,
+          assignedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      setModalOpen(false);
+      setSelectedStaffId("");
+      setSelectedAttraction("");
+    } catch (error) {
+      console.error("Unable to save staff assignment:", error);
+      setActionError("Unable to save the assignment. Check your access and try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function removeAssignment() {
+  async function removeAssignment() {
     if (!removeTarget) return;
-
-    setStaff((previous) =>
-      previous.map((member) =>
-        member.id === removeTarget.id
-          ? {
-              ...member,
-              attraction: null,
-              assignmentDate: null,
-            }
-          : member
-      )
-    );
-
-    setRemoveTarget(null);
+    try {
+      await deleteDoc(doc(db, "staffAssignments", removeTarget.id));
+      setRemoveTarget(null);
+    } catch (error) {
+      console.error("Unable to remove staff assignment:", error);
+      setActionError("Unable to remove the assignment. Check your access and try again.");
+    }
   }
 
   return (
@@ -245,11 +240,11 @@ export default function StaffAssignmentsPage() {
             </button>
           </div>
 
-          {/* PREVIEW NOTICE */}
-          <div className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs text-gray-500">
-            Preview data only. Assignment changes are temporary
-            and will reset when the page is refreshed.
-          </div>
+          {(usersError || assignmentsError || attractionsError || actionError) && (
+            <p role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {actionError || usersError || assignmentsError || attractionsError}
+            </p>
+          )}
 
           {/* SUMMARY CARDS */}
           <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -329,8 +324,8 @@ export default function StaffAssignmentsPage() {
                 >
                   <option value="All">All Attractions</option>
                   {attractions.map((attraction) => (
-                    <option key={attraction} value={attraction}>
-                      {attraction}
+                    <option key={attraction.id} value={attraction.name}>
+                      {attraction.name}
                     </option>
                   ))}
                 </select>
@@ -360,7 +355,7 @@ export default function StaffAssignmentsPage() {
                 </thead>
 
                 <tbody className="divide-y divide-gray-100">
-                  {filteredStaff.map((member) => (
+                  {!usersLoading && !assignmentsLoading && !attractionsLoading && filteredStaff.map((member) => (
                     <tr
                       key={member.id}
                       className="transition hover:bg-gray-50/70"
@@ -445,7 +440,9 @@ export default function StaffAssignmentsPage() {
               </table>
             </div>
 
-            {filteredStaff.length === 0 && (
+            {(usersLoading || assignmentsLoading || attractionsLoading) ? (
+              <p className="px-6 py-12 text-center text-sm text-gray-500">Loading staff and attraction records…</p>
+            ) : !usersError && !assignmentsError && !attractionsError && filteredStaff.length === 0 && (
               <div className="px-6 py-16 text-center">
                 <Users size={30} className="mx-auto text-gray-300" />
                 <p className="mt-4 text-lg font-bold text-gray-800">
@@ -531,7 +528,7 @@ export default function StaffAssignmentsPage() {
                       (item) => item.id === event.target.value
                     );
                     setSelectedStaffId(event.target.value);
-                    setSelectedAttraction(member?.attraction ?? "");
+                    setSelectedAttraction(member?.attractionId ?? "");
                   }}
                   className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-[#c1122f]"
                 >
@@ -564,8 +561,8 @@ export default function StaffAssignmentsPage() {
                 >
                   <option value="">Select attraction</option>
                   {attractions.map((attraction) => (
-                    <option key={attraction} value={attraction}>
-                      {attraction}
+                    <option key={attraction.id} value={attraction.id}>
+                      {attraction.name}
                     </option>
                   ))}
                 </select>
@@ -588,11 +585,11 @@ export default function StaffAssignmentsPage() {
 
               <button
                 type="button"
-                onClick={saveAssignment}
-                disabled={!selectedStaffId || !selectedAttraction}
+                onClick={() => void saveAssignment()}
+                disabled={!selectedStaffId || !selectedAttraction || saving}
                 className="rounded-xl bg-[#c1122f] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#9e0e26] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Save Assignment
+                {saving ? "Saving…" : "Save Assignment"}
               </button>
             </div>
           </div>
@@ -635,7 +632,7 @@ export default function StaffAssignmentsPage() {
 
               <button
                 type="button"
-                onClick={removeAssignment}
+                onClick={() => void removeAssignment()}
                 className="rounded-xl bg-[#c1122f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#9e0e26]"
               >
                 Remove Assignment

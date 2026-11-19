@@ -32,10 +32,12 @@ import {
 
 function StaffDashboardContent() {
   const { accountData, role, isAdmin, assignedAttraction, setAssignedAttraction } = useStaffAuth();
-  const staffName = accountData?.fullName || "Staff Officer";
+  const staffName = accountData?.fullName || accountData?.email || "—";
 
   const {
     attractions,
+    attractionsLoading,
+    attractionsError,
     currentAttraction,
     setActiveAttractionName,
     scanMode,
@@ -43,6 +45,8 @@ function StaffDashboardContent() {
     isQueuePaused,
     setIsQueuePaused,
     logs,
+    logsLoading,
+    logsError,
     lastVerification,
     setLastVerification,
     verifyAndProcessCode,
@@ -55,6 +59,24 @@ function StaffDashboardContent() {
   const [inputCode, setInputCode] = useState("");
   const [stationModalOpen, setStationModalOpen] = useState(false);
 
+  if (!currentAttraction) {
+    return (
+      <>
+        <StaffNav />
+        <main className="min-h-screen bg-[#f5f5f7] px-5 pt-28">
+          <div className="mx-auto max-w-2xl rounded-3xl border border-black/[0.06] bg-white p-8 text-center shadow-sm">
+            <h1 className="text-2xl font-semibold text-[#1d1d1f]">No attraction assigned</h1>
+            <p role={attractionsError ? "alert" : undefined} className="mt-3 text-sm text-[#6e6e73]">
+              {attractionsLoading
+                ? "Loading attraction records…"
+                : attractionsError ?? "Add an attraction and assign this staff account before using station operations."}
+            </p>
+          </div>
+        </main>
+      </>
+    );
+  }
+
   const handleScanSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputCode.trim()) return;
@@ -62,17 +84,21 @@ function StaffDashboardContent() {
     setInputCode("");
   };
 
-  const occupancyRatio = currentAttraction.capacity > 0
+  const occupancyRatio = currentAttraction.capacity !== null &&
+    currentAttraction.currentVisitors !== null &&
+    currentAttraction.capacity > 0
     ? (currentAttraction.currentVisitors / currentAttraction.capacity) * 100
-    : 0;
+    : null;
 
-  const getCapacityColor = (ratio: number) => {
+  const getCapacityColor = (ratio: number | null) => {
+    if (ratio === null) return "text-gray-700 bg-gray-50 border-gray-200";
     if (ratio >= 95) return "text-red-700 bg-red-50 border-red-200";
     if (ratio >= 75) return "text-amber-800 bg-amber-50 border-amber-200";
     return "text-emerald-800 bg-emerald-50 border-emerald-200";
   };
 
-  const getProgressBarColor = (ratio: number) => {
+  const getProgressBarColor = (ratio: number | null) => {
+    if (ratio === null) return "bg-gray-300";
     if (ratio >= 95) return "bg-red-500";
     if (ratio >= 75) return "bg-amber-500";
     return "bg-emerald-500";
@@ -250,13 +276,13 @@ function StaffDashboardContent() {
                   <div>
                     <span className="block text-[10px] font-bold uppercase tracking-wider text-white/60">Current Visitors</span>
                     <span className="text-2xl font-bold text-white mt-0.5 block">
-                      {currentAttraction.currentVisitors}
+                      {currentAttraction.currentVisitors ?? "—"}
                     </span>
                   </div>
                   <div>
                     <span className="block text-[10px] font-bold uppercase tracking-wider text-white/60">Capacity Limit</span>
                     <span className="text-2xl font-bold text-white/90 mt-0.5 block">
-                      {currentAttraction.capacity} <span className="text-xs font-normal text-white/60">pax</span>
+                      {currentAttraction.capacity ?? "—"} <span className="text-xs font-normal text-white/60">pax</span>
                     </span>
                   </div>
                   <div>
@@ -268,7 +294,7 @@ function StaffDashboardContent() {
                   <div>
                     <span className="block text-[10px] font-bold uppercase tracking-wider text-white/60">Live Occupancy</span>
                     <span className="text-xs font-bold text-amber-300 mt-1 block font-mono">
-                      {Math.round(occupancyRatio)}% Capacity
+                      {occupancyRatio === null ? "—" : `${Math.round(occupancyRatio)}% Capacity`}
                     </span>
                   </div>
                 </div>
@@ -534,23 +560,23 @@ function StaffDashboardContent() {
                       Current Occupancy
                     </span>
                     <span className="text-xs font-mono font-bold">
-                      {Math.round(occupancyRatio)}% Full
+                      {occupancyRatio === null ? "—" : `${Math.round(occupancyRatio)}% Full`}
                     </span>
                   </div>
 
                   <div className="flex items-baseline gap-2 mb-3">
                     <span className="text-3xl font-bold font-serif text-[#1d1d1f]">
-                      {currentAttraction.currentVisitors}
+                      {currentAttraction.currentVisitors ?? "—"}
                     </span>
                     <span className="text-xs text-[#6e6e73]">
-                      / {currentAttraction.capacity} Safe Limit
+                      / {currentAttraction.capacity ?? "—"} Safe Limit
                     </span>
                   </div>
 
                   <div className="w-full bg-black/10 rounded-full h-2.5 overflow-hidden">
                     <div
                       className={`h-full transition-all duration-500 ${getProgressBarColor(occupancyRatio)}`}
-                      style={{ width: `${Math.min(100, occupancyRatio)}%` }}
+                      style={{ width: `${Math.min(100, occupancyRatio ?? 0)}%` }}
                     />
                   </div>
                 </div>
@@ -562,7 +588,7 @@ function StaffDashboardContent() {
                       Today&apos;s Entries
                     </span>
                     <span className="text-2xl font-bold text-emerald-800 mt-1 block">
-                      +{totalEntriesToday}
+                      {logsLoading || logsError ? "—" : `+${totalEntriesToday}`}
                     </span>
                   </div>
                   <div className="p-4 rounded-2xl border border-black/[0.06] bg-[#f5f5f7]">
@@ -570,7 +596,7 @@ function StaffDashboardContent() {
                       Today&apos;s Exits
                     </span>
                     <span className="text-2xl font-bold text-blue-800 mt-1 block">
-                      -{totalExitsToday}
+                      {logsLoading || logsError ? "—" : `-${totalExitsToday}`}
                     </span>
                   </div>
                 </div>
@@ -614,7 +640,7 @@ function StaffDashboardContent() {
                       <button
                         type="button"
                         onClick={() => manualAdjustCount(-1)}
-                        disabled={currentAttraction.currentVisitors <= 0}
+                        disabled={currentAttraction.currentVisitors === null || currentAttraction.currentVisitors <= 0}
                         className="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-[#f5f5f7] hover:bg-white text-[#1d1d1f] font-bold disabled:opacity-40 transition cursor-pointer"
                         title="Subtract 1"
                       >
@@ -623,6 +649,7 @@ function StaffDashboardContent() {
                       <button
                         type="button"
                         onClick={() => manualAdjustCount(1)}
+                        disabled={currentAttraction.currentVisitors === null || currentAttraction.capacity === null || currentAttraction.currentVisitors >= currentAttraction.capacity}
                         className="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-[#f5f5f7] hover:bg-white text-[#1d1d1f] font-bold transition cursor-pointer"
                         title="Add 1"
                       >
@@ -806,7 +833,7 @@ function StaffDashboardContent() {
                   </div>
                   <div className="text-right">
                     <span className="font-mono font-bold block text-xs text-[#1d1d1f]">
-                      {attraction.currentVisitors}/{attraction.capacity}
+                      {attraction.currentVisitors ?? "—"}/{attraction.capacity ?? "—"}
                     </span>
                     <span
                       className={`text-[10px] font-bold uppercase ${

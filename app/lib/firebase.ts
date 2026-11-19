@@ -1,19 +1,32 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore"; // Import this
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAE0fspY9xXQBBwcHPtvs523L1vZS-C1CE",
-  authDomain: "monte-maria.firebaseapp.com",
-  projectId: "monte-maria",
-  storageBucket: "monte-maria.firebasestorage.app",
-  messagingSenderId: "381198821409",
-  appId: "1:381198821409:web:b17cb90e0184d4c35fdb60",
-  measurementId: "G-VZ13LW8K94"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
+
+const missingConfig = Object.entries(firebaseConfig)
+  .filter(([key, value]) => key !== "measurementId" && !value)
+  .map(([key]) => key);
+
+if (missingConfig.length > 0) {
+  throw new Error(
+    `Missing Firebase configuration: ${missingConfig.join(", ")}. ` +
+      "Set the NEXT_PUBLIC_FIREBASE_* variables in the project root .env.local."
+  );
+}
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
-export const db = getFirestore(app); // Add this export
+export const db = getFirestore(app);
+export const storage = getStorage(app);
 export { app };

@@ -2,7 +2,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import AdminNav from "../AdminNav";
+import { db } from "../../lib/firebase";
+import { useLiveCollection } from "../../lib/firestore";
+import type { UserRecord } from "../../lib/models";
 import {
   Users,
   UserCheck,
@@ -30,57 +34,6 @@ interface UserAccount {
   status: AccountStatus;
   dateCreated: string;
 }
-
-const initialUsers: UserAccount[] = [
-  {
-    id: "USR-1001",
-    fullName: "Juan Dela Cruz",
-    email: "juan@gmail.com",
-    role: "Visitor",
-    status: "Active",
-    dateCreated: "Sep 25, 2026",
-  },
-  {
-    id: "USR-1002",
-    fullName: "Maria Santos",
-    email: "maria@gmail.com",
-    role: "Visitor",
-    status: "Active",
-    dateCreated: "Sep 26, 2026",
-  },
-  {
-    id: "USR-1003",
-    fullName: "Carlo Reyes",
-    email: "carlo@gmail.com",
-    role: "Visitor",
-    status: "Active",
-    dateCreated: "Sep 27, 2026",
-  },
-  {
-    id: "USR-1004",
-    fullName: "Mark Garcia",
-    email: "staff@montemaria.com",
-    role: "Staff",
-    status: "Active",
-    dateCreated: "Sep 20, 2026",
-  },
-  {
-    id: "USR-1005",
-    fullName: "Tourism Administrator",
-    email: "tourism@gmail.com",
-    role: "Tourism",
-    status: "Active",
-    dateCreated: "May 27, 2026",
-  },
-  {
-    id: "USR-1006",
-    fullName: "Angela Cruz",
-    email: "angela@gmail.com",
-    role: "Visitor",
-    status: "Inactive",
-    dateCreated: "Sep 21, 2026",
-  },
-];
 
 function RoleBadge({ role }: { role: UserRole }) {
   const styles: Record<UserRole, string> = {
@@ -126,8 +79,31 @@ function StatusBadge({
 }
 
 export default function AccountsPage() {
-  const [users, setUsers] =
-    useState<UserAccount[]>(initialUsers);
+  const { records, loading, error } = useLiveCollection<UserRecord>("users");
+  const users: UserAccount[] = records.map((record) => {
+    const name = [record.firstName, record.lastName].filter(Boolean).join(" ");
+    const date =
+      typeof record.createdAt === "string"
+        ? record.createdAt
+        : record.createdAt &&
+            typeof record.createdAt === "object" &&
+            "toDate" in record.createdAt &&
+            typeof record.createdAt.toDate === "function"
+          ? record.createdAt.toDate().toLocaleDateString("en-PH")
+          : "—";
+    return {
+      id: record.id,
+      fullName: name || record.username || record.email || "—",
+      email: record.email ?? "—",
+      role: record.role === "tourism" || record.role === "admin"
+        ? "Tourism"
+        : record.role === "staff"
+          ? "Staff"
+          : "Visitor",
+      status: record.status === "Inactive" ? "Inactive" : "Active",
+      dateCreated: date,
+    };
+  });
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] =
@@ -140,6 +116,8 @@ export default function AccountsPage() {
 
   const [pendingUser, setPendingUser] =
     useState<UserAccount | null>(null);
+  const [actionError, setActionError] = useState("");
+  const [updating, setUpdating] = useState(false);
 
   const totalUsers = users.length;
 
@@ -226,7 +204,7 @@ export default function AccountsPage() {
     setPendingUser(user);
   }
 
-  function confirmStatusChange() {
+  async function confirmStatusChange() {
     if (!pendingUser || pendingUser.role === "Tourism") {
       setPendingUser(null);
       return;
@@ -237,25 +215,20 @@ export default function AccountsPage() {
         ? "Inactive"
         : "Active";
 
-    setUsers((previousUsers) =>
-      previousUsers.map((user) =>
-        user.id === pendingUser.id &&
-        user.role !== "Tourism"
-          ? {
-              ...user,
-              status: nextStatus,
-            }
-          : user
-      )
-    );
-
-    setSelectedUser((current) =>
-      current?.id === pendingUser.id
-        ? { ...current, status: nextStatus }
-        : current
-    );
-
-    setPendingUser(null);
+    setUpdating(true);
+    setActionError("");
+    try {
+      await updateDoc(doc(db, "users", pendingUser.id), {
+        status: nextStatus,
+        updatedAt: serverTimestamp(),
+      });
+      setPendingUser(null);
+    } catch (updateError) {
+      console.error("Unable to update account status:", updateError);
+      setActionError("Unable to update this account. Check your access and try again.");
+    } finally {
+      setUpdating(false);
+    }
   }
 
   return (
@@ -299,27 +272,22 @@ export default function AccountsPage() {
               </div>
 
               <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
-                <span className="h-2.5 w-2.5 rounded-full bg-gray-400" />
+                <span className={`h-2.5 w-2.5 rounded-full ${loading ? "animate-pulse bg-amber-400" : error ? "bg-red-500" : "bg-emerald-500"}`} />
 
                 <div>
                   <p className="text-xs font-bold text-gray-800">
-                    Sample Data
+                    {loading ? "Connecting" : error ? "Unavailable" : "Live Data"}
                   </p>
                   <p className="mt-1 text-xs text-gray-400">
-                    Not connected to Firebase
+                    Firebase account records
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* SAMPLE DATA NOTICE */}
-          <div className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs leading-5 text-gray-500">
-            This page currently uses demonstration account
-            records. Account status changes only affect the
-            current page session and do not update Firebase
-            Authentication or Firestore.
-          </div>
+          {error && <p role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+          {actionError && <p role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{actionError}</p>}
 
           {/* SUMMARY CARDS */}
           <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -467,7 +435,7 @@ export default function AccountsPage() {
                 </thead>
 
                 <tbody className="divide-y divide-gray-100">
-                  {filteredUsers.map((user) => (
+                  {!loading && !error && filteredUsers.map((user) => (
                     <tr
                       key={user.id}
                       className="transition-colors hover:bg-gray-50/70"
@@ -541,7 +509,9 @@ export default function AccountsPage() {
             </div>
 
             {/* EMPTY STATE */}
-            {filteredUsers.length === 0 && (
+            {loading ? (
+              <p className="px-6 py-16 text-center text-sm text-gray-500">Loading user accounts…</p>
+            ) : !error && filteredUsers.length === 0 && (
               <div className="px-6 py-16 text-center">
                 <Users
                   size={30}
@@ -553,7 +523,9 @@ export default function AccountsPage() {
                 </p>
 
                 <p className="mt-2 text-sm text-gray-500">
-                  Try changing your search or filters.
+                  {users.length === 0
+                    ? "No user accounts are available."
+                    : "Try changing your search or filters."}
                 </p>
               </div>
             )}
@@ -561,8 +533,7 @@ export default function AccountsPage() {
             {/* TABLE FOOTER */}
             <div className="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-gray-400">
-                Showing {filteredUsers.length} of{" "}
-                {users.length} sample accounts
+                Showing {filteredUsers.length} of {users.length} accounts
               </p>
 
               <p className="text-xs text-gray-400">
@@ -692,8 +663,8 @@ export default function AccountsPage() {
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                 <p className="text-xs leading-5 text-gray-500">
                   {selectedUser.role === "Tourism"
-                    ? "This is a protected Tourism Administrator account. Its status cannot be changed through this demonstration interface."
-                    : "This account's status can be changed for demonstration purposes. Changes are not saved to Firebase."}
+                    ? "This is a protected Tourism Administrator account."
+                    : "Account access status is stored in Firestore and enforced by the application security rules."}
                 </p>
               </div>
 
@@ -787,9 +758,7 @@ export default function AccountsPage() {
             </p>
 
             <p className="mt-3 rounded-xl bg-gray-50 p-3 text-xs leading-5 text-gray-500">
-              This change will only update the sample data
-              displayed on this page. It will not affect
-              actual account access in Firebase.
+              This change will update the account status in Firestore.
             </p>
 
             <div className="mt-6 flex justify-end gap-3">
@@ -803,14 +772,15 @@ export default function AccountsPage() {
 
               <button
                 type="button"
-                onClick={confirmStatusChange}
+                onClick={() => void confirmStatusChange()}
+                disabled={updating}
                 className={`rounded-xl px-5 py-2.5 text-sm font-semibold text-white ${
                   pendingUser.status === "Active"
                     ? "bg-[#B76B73] hover:bg-[#A45460]"
                     : "bg-[#6B9B83] hover:bg-[#4D8067]"
                 }`}
               >
-                {pendingUser.status === "Active"
+                {updating ? "Saving…" : pendingUser.status === "Active"
                   ? "Deactivate"
                   : "Activate"}
               </button>

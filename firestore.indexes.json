@@ -1,0 +1,41 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "attractionId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "paymentStatus", "order": "ASCENDING" },
+        { "fieldPath": "ticketStatus", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "paymentStatus", "order": "ASCENDING" },
+        { "fieldPath": "ticketStatus", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ticketCode", "order": "ASCENDING" },
+        { "fieldPath": "attractionId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "bookingDate", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

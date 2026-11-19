@@ -1,21 +1,43 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  onSnapshot,
+  query,
+  runTransaction,
+  serverTimestamp,
+  updateDoc,
+  where,
+  type DocumentData,
+} from "firebase/firestore";
+import { db } from "../lib/firebase";
+import { useLiveCollection } from "../lib/firestore";
+import type { AttractionRecord, BookingRecord, VisitorLogRecord } from "../lib/models";
 
-export type AttractionStatus = "Available" | "Near Capacity" | "Full" | "Closed";
+export type AttractionStatus =
+  | "Available"
+  | "Near Capacity"
+  | "Full"
+  | "Closed"
+  | "Unavailable";
 
 export interface AttractionInfo {
-  id: number;
+  id: string;
   name: string;
   location: string;
   type: "Paid" | "Free";
-  currentVisitors: number;
-  capacity: number;
+  currentVisitors: number | null;
+  capacity: number | null;
   status: AttractionStatus;
   operatingHours: string;
   stationTerminal: string;
   description: string;
   rules: string[];
+  queuePaused: boolean;
 }
 
 export type ScanMode = "ENTRY" | "EXIT";
@@ -39,6 +61,7 @@ export interface TicketData {
   issuedDate: string;
   validDate: string;
   paymentStatus: "Paid" | "Pending";
+  visitStatus?: "outside" | "inside" | "exited";
 }
 
 export interface VerificationResult {
@@ -60,497 +83,487 @@ export interface VisitorEntryExitLog {
   statusText: string;
   verifiedBy: string;
   reason?: string;
+  dateKey?: string;
 }
 
-export const INITIAL_ATTRACTIONS: AttractionInfo[] = [
-  {
-    id: 1,
-    name: "Mirage Walk",
-    location: "East Wing Elevated Terrace",
-    type: "Paid",
-    currentVisitors: 8,
-    capacity: 20,
-    status: "Available",
-    operatingHours: "08:00 AM - 05:00 PM",
-    stationTerminal: "Gate 01 - East Gate",
-    description: "Scenic skywalk overlooking Batangas Bay with optical glass floor reflections.",
-    rules: ["Shoe covers required", "Maximum 20 persons at a time", "No running or food"],
-  },
-  {
-    id: 2,
-    name: "View Deck",
-    location: "Upper Summit Promenade",
-    type: "Paid",
-    currentVisitors: 35,
-    capacity: 50,
-    status: "Near Capacity",
-    operatingHours: "07:30 AM - 06:00 PM",
-    stationTerminal: "Gate 02 - Summit North",
-    description: "Panoramic 360-degree observation deck facing Verde Island Passage.",
-    rules: ["Stay behind safety rails", "Children must be accompanied", "Stanchion lane strictly 1-way"],
-  },
-  {
-    id: 3,
-    name: "Glass Walk",
-    location: "West Cliff Bridge",
-    type: "Paid",
-    currentVisitors: 15,
-    capacity: 15,
-    status: "Full",
-    operatingHours: "08:30 AM - 05:00 PM",
-    stationTerminal: "Gate 03 - West Bridge",
-    description: "Suspended transparent glass walkway with sheer 100-meter drop view.",
-    rules: ["Capacity locked at 15 pax", "No high heels allowed", "Hold onto handrails"],
-  },
-  {
-    id: 4,
-    name: "Mirror Walk",
-    location: "Pilgrim Garden Path",
-    type: "Paid",
-    currentVisitors: 12,
-    capacity: 25,
-    status: "Available",
-    operatingHours: "08:00 AM - 05:30 PM",
-    stationTerminal: "Gate 04 - Garden Portal",
-    description: "Illuminated mirror corridor reflecting spiritual murals and mountain flora.",
-    rules: ["Photography allowed without flash", "Maintain solemn silence"],
-  },
-  {
-    id: 5,
-    name: "Gate of the Archangels",
-    location: "Sanctuary Grand Entrance",
-    type: "Free",
-    currentVisitors: 42,
-    capacity: 60,
-    status: "Near Capacity",
-    operatingHours: "06:00 AM - 07:00 PM",
-    stationTerminal: "Gate 05 - Main Portal",
-    description: "Monumental archway and statuary guarding the pilgrimage ascent.",
-    rules: ["Open to all pilgrims", "Wheelchair accessible ramp available"],
-  },
-  {
-    id: 6,
-    name: "Sto. Niño Chapel",
-    location: "Central Chapel Ground",
-    type: "Free",
-    currentVisitors: 28,
-    capacity: 40,
-    status: "Near Capacity",
-    operatingHours: "06:00 AM - 07:00 PM",
-    stationTerminal: "Gate 06 - Chapel Portal",
-    description: "Sacred prayer and adoration chapel at the foot of the Mother of All Asia tower.",
-    rules: ["Dress code strictly enforced", "Silence mobile devices", "Votive candle station outside"],
-  },
-];
+function recordTime(value: unknown): Date | null {
+  if (value instanceof Date) return value;
+  if (
+    value &&
+    typeof value === "object" &&
+    "toDate" in value &&
+    typeof value.toDate === "function"
+  ) {
+    return value.toDate();
+  }
+  if (typeof value === "string") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
+}
 
-export const SAMPLE_TICKET_DATABASE: Record<string, TicketData> = {
-  "MM-2026-8812": {
-    ticketId: "MM-2026-8812",
-    bookingRef: "BK-90214",
-    visitorName: "Gabriel Mendoza",
-    email: "gabriel.m@example.com",
-    attractionName: "Mirage Walk",
-    passType: "Single Attraction",
-    paxCount: 2,
-    status: "active",
-    issuedDate: "Nov 10, 2026",
-    validDate: "Nov 10, 2026",
-    paymentStatus: "Paid",
-  },
-  "MM-2026-4431": {
-    ticketId: "MM-2026-4431",
-    bookingRef: "BK-88412",
-    visitorName: "Maria Clara Santos",
-    email: "clara.santos@example.com",
-    attractionName: "All Attractions (All-Access Pass)",
-    passType: "All-Access Pass",
-    paxCount: 4,
-    status: "active",
-    issuedDate: "Nov 10, 2026",
-    validDate: "Nov 10, 2026",
-    paymentStatus: "Paid",
-  },
-  "MM-2026-1190": {
-    ticketId: "MM-2026-1190",
-    bookingRef: "BK-76129",
-    visitorName: "Juan Dela Cruz",
-    email: "juan.delacruz@example.com",
-    attractionName: "View Deck",
-    passType: "Single Attraction",
-    paxCount: 1,
-    status: "active",
-    issuedDate: "Nov 10, 2026",
-    validDate: "Nov 10, 2026",
-    paymentStatus: "Paid",
-  },
-  "MM-2026-USED1": {
-    ticketId: "MM-2026-USED1",
-    bookingRef: "BK-55210",
-    visitorName: "Antonio Luna",
-    email: "antonio.l@example.com",
-    attractionName: "Mirage Walk",
-    passType: "Single Attraction",
-    paxCount: 1,
-    status: "used",
-    issuedDate: "Nov 10, 2026",
-    validDate: "Nov 10, 2026",
-    paymentStatus: "Paid",
-  },
-  "MM-2026-EXPD9": {
-    ticketId: "MM-2026-EXPD9",
-    bookingRef: "BK-44102",
-    visitorName: "Ricardo Dalisay",
-    email: "carding@example.com",
-    attractionName: "Mirage Walk",
-    passType: "Single Attraction",
-    paxCount: 1,
-    status: "expired",
-    issuedDate: "Nov 01, 2026",
-    validDate: "Nov 01, 2026",
-    paymentStatus: "Paid",
-  },
-  "MM-2026-WRONG": {
-    ticketId: "MM-2026-WRONG",
-    bookingRef: "BK-33901",
-    visitorName: "Elena Bautista",
-    email: "elena.b@example.com",
-    attractionName: "Glass Walk",
-    passType: "Single Attraction",
-    paxCount: 3,
-    status: "active",
-    issuedDate: "Nov 10, 2026",
-    validDate: "Nov 10, 2026",
-    paymentStatus: "Paid",
-  },
-};
+function localDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
-export const INITIAL_LOGS: VisitorEntryExitLog[] = [
-  {
-    id: "LOG-501",
-    timestamp: "02:18 PM",
-    visitorName: "Sofia Ramirez",
-    ticketId: "MM-2026-4431",
-    attractionName: "Mirage Walk",
-    eventType: "ENTRY",
-    pax: 2,
-    statusText: "Admitted via QR Entry Scan",
-    verifiedBy: "Mark Garcia (Gate 01)",
-  },
-  {
-    id: "LOG-502",
-    timestamp: "02:12 PM",
-    visitorName: "Carlos Delgado",
-    ticketId: "MM-2026-1190",
-    attractionName: "Mirage Walk",
-    eventType: "EXIT",
-    pax: 1,
-    statusText: "Exited attraction normally",
-    verifiedBy: "Mark Garcia (Gate 01)",
-  },
-  {
-    id: "LOG-503",
-    timestamp: "02:05 PM",
-    visitorName: "Unknown Visitor",
-    ticketId: "MM-INVALID-99",
-    attractionName: "Mirage Walk",
-    eventType: "DENIED",
-    pax: 1,
-    statusText: "Denied entry",
-    verifiedBy: "Mark Garcia (Gate 01)",
-    reason: "Invalid QR Code - Ticket not found in records",
-  },
-  {
-    id: "LOG-504",
-    timestamp: "01:54 PM",
-    visitorName: "Theresa Aquino",
-    ticketId: "MM-2026-8812",
-    attractionName: "Mirage Walk",
-    eventType: "ENTRY",
-    pax: 3,
-    statusText: "Admitted via QR Entry Scan",
-    verifiedBy: "Mark Garcia (Gate 01)",
-  },
-  {
-    id: "LOG-505",
-    timestamp: "01:40 PM",
-    visitorName: "Manuel Quezon",
-    ticketId: "MM-2026-3101",
-    attractionName: "Mirage Walk",
-    eventType: "EXIT",
-    pax: 2,
-    statusText: "Exited attraction normally",
-    verifiedBy: "Mark Garcia (Gate 01)",
-  },
-];
+function statusFromCapacity(
+  current: number | null,
+  capacity: number | null,
+  closed: boolean
+): AttractionStatus {
+  if (closed) return "Closed";
+  if (current === null || capacity === null || capacity <= 0) return "Unavailable";
+  if (current >= capacity) return "Full";
+  if (capacity > 0 && current / capacity >= 0.75) return "Near Capacity";
+  return "Available";
+}
 
-export function useStaffOperations(assignedAttractionName: string = "Mirage Walk", staffName: string = "Staff Officer") {
-  const [attractions, setAttractions] = useState<AttractionInfo[]>(INITIAL_ATTRACTIONS);
+function toAttraction(record: AttractionRecord): AttractionInfo {
+  const currentVisitors =
+    typeof record.currentVisitors === "number" ? record.currentVisitors : null;
+  const capacity = typeof record.capacity === "number" ? record.capacity : null;
+  const extra = record as AttractionRecord & DocumentData;
+  return {
+    id: record.id,
+    name: record.name ?? "",
+    location: record.location ?? "—",
+    type: record.type,
+    currentVisitors,
+    capacity,
+    status: statusFromCapacity(currentVisitors, capacity, record.status === "Closed"),
+    operatingHours: record.schedule ?? "—",
+    stationTerminal:
+      typeof extra.stationTerminal === "string" ? extra.stationTerminal : record.location ?? "—",
+    description: record.description ?? "",
+    rules: Array.isArray(extra.rules) ? extra.rules : [],
+    queuePaused: extra.queuePaused === true,
+  };
+}
+
+function toLog(record: VisitorLogRecord): VisitorEntryExitLog {
+  const created = recordTime(record.createdAt);
+  return {
+    id: record.id,
+    timestamp: created
+      ? created.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : "—",
+    visitorName: record.visitorName ?? "—",
+    ticketId: record.ticketId ?? "—",
+    attractionName: record.attractionName ?? "—",
+    eventType: record.eventType,
+    pax: record.pax,
+    statusText:
+      record.eventType === "DENIED"
+        ? "Entry denied"
+        : record.eventType === "ENTRY"
+          ? "Visitor entry recorded"
+          : "Visitor exit recorded",
+    verifiedBy: record.verifiedBy ?? "—",
+    reason: record.reason,
+    dateKey: created ? localDate(created) : undefined,
+  };
+}
+
+export function useStaffOperations(
+  assignedAttractionName = "",
+  staffName = ""
+) {
+  const { records: attractionRecords, loading: attractionsLoading, error: attractionsError } =
+    useLiveCollection<AttractionRecord>("attractions");
+  const attractions = useMemo(
+    () => attractionRecords.map(toAttraction),
+    [attractionRecords]
+  );
   const [overrideStation, setOverrideStation] = useState<string | null>(null);
-  const activeAttractionName = overrideStation || (assignedAttractionName !== "All Attractions (Supervisor)" ? assignedAttractionName : "Mirage Walk");
-  const setActiveAttractionName = (stationName: string) => setOverrideStation(stationName);
-
   const [scanMode, setScanMode] = useState<ScanMode>("ENTRY");
-  const [isQueuePaused, setIsQueuePaused] = useState<boolean>(false);
-  const [logs, setLogs] = useState<VisitorEntryExitLog[]>(INITIAL_LOGS);
-  const [lastVerification, setLastVerification] = useState<VerificationResult | null>(null);
+  const [lastVerification, setLastVerification] =
+    useState<VerificationResult | null>(null);
+  const [logsState, setLogsState] = useState<{
+    attractionId: string;
+    records: VisitorEntryExitLog[];
+    loading: boolean;
+    error: string | null;
+  }>({ attractionId: "", records: [], loading: true, error: null });
 
+  const activeAttractionName =
+    overrideStation ??
+    (assignedAttractionName === "All Attractions (Supervisor)"
+      ? attractions[0]?.name ?? ""
+      : assignedAttractionName);
   const currentAttraction =
-    attractions.find((a) => a.name === activeAttractionName) || attractions[0];
+    attractions.find((attraction) => attraction.name === activeAttractionName) ?? null;
 
-  // Helper to re-calculate status based on capacity
-  const updateAttractionVisitorCount = (attractionName: string, delta: number) => {
-    setAttractions((prev) =>
-      prev.map((attraction) => {
-        if (attraction.name !== attractionName) return attraction;
-        const newCount = Math.max(0, attraction.currentVisitors + delta);
-        const ratio = newCount / attraction.capacity;
-        let newStatus: AttractionStatus = "Available";
-        if (ratio >= 1.0) newStatus = "Full";
-        else if (ratio >= 0.75) newStatus = "Near Capacity";
-        return {
-          ...attraction,
-          currentVisitors: newCount,
-          status: newStatus,
-        };
-      })
+  const currentAttractionId = currentAttraction?.id;
+
+  useEffect(() => {
+    if (!currentAttractionId) return;
+    const logsQuery = query(
+      collection(db, "visitorLogs"),
+      where("attractionId", "==", currentAttractionId)
     );
-  };
-
-  // Process a QR code or Manual Ticket Code
-  const verifyAndProcessCode = (rawCode: string, overrideMode?: ScanMode): VerificationResult => {
-    const code = rawCode.trim().toUpperCase();
-    const mode = overrideMode || scanMode;
-    const timeNow = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-
-    // 1. Look up in sample database
-    const ticket = SAMPLE_TICKET_DATABASE[code] || null;
-
-    if (!ticket) {
-      const result: VerificationResult = {
-        status: "INVALID_CODE",
-        message: `Ticket code "${code}" could not be verified in D1 User Account Records.`,
-        ticket: null,
-        scanMode: mode,
-        timestamp: timeNow,
-      };
-      setLastVerification(result);
-
-      // Log denial
-      setLogs((prev) => [
-        {
-          id: `LOG-${Date.now().toString().slice(-4)}`,
-          timestamp: timeNow,
-          visitorName: "Unregistered Guest",
-          ticketId: code,
-          attractionName: currentAttraction.name,
-          eventType: "DENIED",
-          pax: 1,
-          statusText: "Invalid ticket scan",
-          verifiedBy: staffName,
-          reason: "Code not found in registration database",
-        },
-        ...prev,
-      ]);
-      return result;
-    }
-
-    // 2. Check for expired or canceled status
-    if (ticket.status === "expired") {
-      const result: VerificationResult = {
-        status: "INVALID_CODE",
-        message: `This ticket expired on ${ticket.validDate}. Access denied.`,
-        ticket,
-        scanMode: mode,
-        timestamp: timeNow,
-      };
-      setLastVerification(result);
-      setLogs((prev) => [
-        {
-          id: `LOG-${Date.now().toString().slice(-4)}`,
-          timestamp: timeNow,
-          visitorName: ticket.visitorName,
-          ticketId: ticket.ticketId,
-          attractionName: currentAttraction.name,
-          eventType: "DENIED",
-          pax: ticket.paxCount,
-          statusText: "Denied entry",
-          verifiedBy: staffName,
-          reason: "Ticket pass expired",
-        },
-        ...prev,
-      ]);
-      return result;
-    }
-
-    // 3. Check for attraction mismatch (unless it's All-Access Pass)
-    const isAllAccess = ticket.passType === "All-Access Pass" || ticket.attractionName.includes("All");
-    const isAttractionMatch = isAllAccess || ticket.attractionName.toLowerCase() === currentAttraction.name.toLowerCase();
-
-    if (!isAttractionMatch) {
-      const result: VerificationResult = {
-        status: "WRONG_ATTRACTION",
-        message: `Ticket is for "${ticket.attractionName}", but current station is "${currentAttraction.name}".`,
-        ticket,
-        scanMode: mode,
-        timestamp: timeNow,
-      };
-      setLastVerification(result);
-      setLogs((prev) => [
-        {
-          id: `LOG-${Date.now().toString().slice(-4)}`,
-          timestamp: timeNow,
-          visitorName: ticket.visitorName,
-          ticketId: ticket.ticketId,
-          attractionName: currentAttraction.name,
-          eventType: "DENIED",
-          pax: ticket.paxCount,
-          statusText: "Attraction mismatch",
-          verifiedBy: staffName,
-          reason: `Ticket valid for ${ticket.attractionName} only`,
-        },
-        ...prev,
-      ]);
-      return result;
-    }
-
-    // 4. Check already scanned or capacity if ENTRY mode
-    if (mode === "ENTRY") {
-      if (isQueuePaused) {
-        const result: VerificationResult = {
-          status: "CAPACITY_FULL",
-          message: `Station queue is temporarily paused for crowd safety regulation.`,
-          ticket,
-          scanMode: mode,
-          timestamp: timeNow,
-        };
-        setLastVerification(result);
-        return result;
-      }
-
-      if (currentAttraction.currentVisitors + ticket.paxCount > currentAttraction.capacity) {
-        const result: VerificationResult = {
-          status: "CAPACITY_FULL",
-          message: `Admitting ${ticket.paxCount} visitors would exceed maximum attraction capacity (${currentAttraction.capacity}). Please queue momentarily.`,
-          ticket,
-          scanMode: mode,
-          timestamp: timeNow,
-        };
-        setLastVerification(result);
-        return result;
-      }
-
-      if (ticket.status === "used") {
-        const result: VerificationResult = {
-          status: "ALREADY_SCANNED",
-          message: `Ticket ${ticket.ticketId} has already been marked as used. Check previous entry logs.`,
-          ticket,
-          scanMode: mode,
-          timestamp: timeNow,
-        };
-        setLastVerification(result);
-        return result;
-      }
-
-      // Valid entry!
-      const result: VerificationResult = {
-        status: "VERIFIED_VALID",
-        message: `Verified valid for ${ticket.paxCount} visitor(s). Admission approved.`,
-        ticket,
-        scanMode: mode,
-        timestamp: timeNow,
-      };
-      setLastVerification(result);
-      return result;
-    } else {
-      // EXIT mode
-      const result: VerificationResult = {
-        status: "VERIFIED_VALID",
-        message: `Exit scan confirmed for ${ticket.paxCount} visitor(s). Thank you for visiting.`,
-        ticket,
-        scanMode: mode,
-        timestamp: timeNow,
-      };
-      setLastVerification(result);
-      return result;
-    }
-  };
-
-  // Commit the admission or exit after verification
-  const confirmAdmission = (verification: VerificationResult) => {
-    if (!verification.ticket) return;
-
-    const pax = verification.ticket.paxCount;
-    const timeNow = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-    if (verification.scanMode === "ENTRY") {
-      updateAttractionVisitorCount(currentAttraction.name, pax);
-      setLogs((prev) => [
-        {
-          id: `LOG-${Date.now().toString().slice(-4)}`,
-          timestamp: timeNow,
-          visitorName: verification.ticket!.visitorName,
-          ticketId: verification.ticket!.ticketId,
-          attractionName: currentAttraction.name,
-          eventType: "ENTRY",
-          pax: pax,
-          statusText: `Admitted ${pax} guest(s)`,
-          verifiedBy: staffName,
-        },
-        ...prev,
-      ]);
-    } else {
-      updateAttractionVisitorCount(currentAttraction.name, -pax);
-      setLogs((prev) => [
-        {
-          id: `LOG-${Date.now().toString().slice(-4)}`,
-          timestamp: timeNow,
-          visitorName: verification.ticket!.visitorName,
-          ticketId: verification.ticket!.ticketId,
-          attractionName: currentAttraction.name,
-          eventType: "EXIT",
-          pax: pax,
-          statusText: `Checked out ${pax} guest(s)`,
-          verifiedBy: staffName,
-        },
-        ...prev,
-      ]);
-    }
-
-    setLastVerification(null);
-  };
-
-  const manualAdjustCount = (delta: number) => {
-    updateAttractionVisitorCount(currentAttraction.name, delta);
-    const timeNow = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setLogs((prev) => [
-      {
-        id: `LOG-${Date.now().toString().slice(-4)}`,
-        timestamp: timeNow,
-        visitorName: "Manual Adjustment",
-        ticketId: "MANUAL",
-        attractionName: currentAttraction.name,
-        eventType: delta > 0 ? "ENTRY" : "EXIT",
-        pax: Math.abs(delta),
-        statusText: `Manual headcount ${delta > 0 ? "+1" : "-1"}`,
-        verifiedBy: staffName,
+    return onSnapshot(
+      logsQuery,
+      (snapshot) => {
+        setLogsState({
+          attractionId: currentAttractionId,
+          records: snapshot.docs
+            .map((item) =>
+              toLog({ ...item.data(), id: item.id } as VisitorLogRecord)
+            ),
+          loading: false,
+          error: null,
+        });
       },
-      ...prev,
-    ]);
-  };
+      (reason) => {
+        console.error("Unable to subscribe to visitor logs:", reason);
+        setLogsState({
+          attractionId: currentAttractionId,
+          records: [],
+          loading: false,
+          error: "Unable to load visitor activity. Check your access and try again.",
+        });
+      }
+    );
+  }, [currentAttractionId]);
 
-  const totalEntriesToday = logs.filter((l) => l.eventType === "ENTRY").reduce((s, l) => s + l.pax, 0);
-  const totalExitsToday = logs.filter((l) => l.eventType === "EXIT").reduce((s, l) => s + l.pax, 0);
+  const logsAreCurrent =
+    !!currentAttractionId && logsState.attractionId === currentAttractionId;
+  const logs = logsAreCurrent ? logsState.records : [];
+  const logsLoading = currentAttractionId
+    ? !logsAreCurrent || logsState.loading
+    : false;
+  const logsError = logsAreCurrent ? logsState.error : null;
+
+  const setActiveAttractionName = useCallback((name: string) => {
+    setOverrideStation(name);
+  }, []);
+
+  const setIsQueuePaused = useCallback(
+    (paused: boolean) => {
+      if (!currentAttraction) return;
+      void updateDoc(doc(db, "attractions", currentAttraction.id), {
+        queuePaused: paused,
+        updatedAt: serverTimestamp(),
+      }).catch((error: unknown) => {
+        console.error("Unable to update the queue state:", error);
+        setLastVerification({
+          status: "CAPACITY_FULL",
+          message: "Unable to update the queue state. Check your access and try again.",
+          ticket: null,
+          scanMode,
+          timestamp: new Date().toLocaleTimeString(),
+        });
+      });
+    },
+    [currentAttraction, scanMode]
+  );
+
+  const isQueuePaused = currentAttraction?.queuePaused ?? false;
+
+  const addDeniedLog = useCallback(
+    async (ticketId: string, reason: string, visitorName = "Unknown visitor") => {
+      if (!currentAttraction) return;
+      await addDoc(collection(db, "visitorLogs"), {
+        ticketId,
+        visitorName,
+        attractionId: currentAttraction.id,
+        attractionName: currentAttraction.name,
+        eventType: "DENIED",
+        pax: 1,
+        verifiedBy: staffName || "—",
+        reason,
+        createdAt: serverTimestamp(),
+      });
+    },
+    [currentAttraction, staffName]
+  );
+
+  const verifyAndProcessCode = useCallback(
+    async (rawCode: string, overrideMode?: ScanMode): Promise<VerificationResult> => {
+      const code = rawCode.trim().toUpperCase();
+      const mode = overrideMode || scanMode;
+      const timestamp = new Date().toLocaleTimeString();
+      const fail = async (
+        status: VerificationStatus,
+        message: string,
+        ticket: TicketData | null = null
+      ) => {
+        const result = { status, message, ticket, scanMode: mode, timestamp };
+        setLastVerification(result);
+        try {
+          await addDeniedLog(code || "—", message, ticket?.visitorName);
+        } catch (error) {
+          console.error("Unable to record denied entry:", error);
+          setLogsState((previous) => ({
+            ...previous,
+            attractionId: currentAttraction?.id ?? previous.attractionId,
+            error: "The scan was denied, but its audit record could not be saved.",
+          }));
+        }
+        return result;
+      };
+
+      if (!currentAttraction) {
+        return fail("INVALID_CODE", "No attraction is assigned to this station.");
+      }
+      if (!code) {
+        return fail("INVALID_CODE", "Enter or scan a ticket code.");
+      }
+
+      try {
+        const ticketQuery = query(
+          collection(db, "bookings"),
+          where("ticketCode", "==", code),
+          where("attractionId", "==", currentAttraction.id)
+        );
+        const result = await getDocs(ticketQuery);
+        if (result.empty) {
+          return fail("INVALID_CODE", "This ticket could not be verified for this attraction.");
+        }
+
+        const bookingDoc = result.docs[0];
+        const booking = bookingDoc.data() as BookingRecord;
+        const ticket: TicketData = {
+          ticketId: code,
+          bookingRef: bookingDoc.id,
+          visitorName: booking.visitor ?? booking.email ?? "—",
+          email: booking.email ?? "",
+          attractionName: booking.attractionName ?? currentAttraction.name,
+          passType: "Single Attraction",
+          paxCount: booking.numberOfVisitors,
+          status: booking.ticketStatus ?? "cancelled",
+          issuedDate: recordTime(booking.createdAt)?.toLocaleDateString() ?? "—",
+          validDate: booking.bookingDate ?? "",
+          paymentStatus: booking.paymentStatus === "paid" ? "Paid" : "Pending",
+          visitStatus: booking.visitStatus,
+        };
+
+        if (
+          booking.status !== "confirmed" ||
+          booking.paymentStatus !== "paid" ||
+          ticket.status !== "active"
+        ) {
+          return fail("INVALID_CODE", "This booking is not confirmed and paid.", ticket);
+        }
+        if (booking.bookingDate && booking.bookingDate < localDate(new Date())) {
+          return fail("INVALID_CODE", "This ticket has expired.", ticket);
+        }
+        if (
+          booking.attractionId !== currentAttraction.id ||
+          booking.attractionName?.toLowerCase() !== currentAttraction.name.toLowerCase()
+        ) {
+          return fail("WRONG_ATTRACTION", "This ticket is not valid for the selected attraction.", ticket);
+        }
+        if (
+          currentAttraction.currentVisitors === null ||
+          currentAttraction.capacity === null
+        ) {
+          return fail("CAPACITY_FULL", "Occupancy data is unavailable for this attraction.", ticket);
+        }
+        if (mode === "ENTRY") {
+          if (isQueuePaused) {
+            return fail("CAPACITY_FULL", "Entry is paused at this station.", ticket);
+          }
+          if (ticket.visitStatus === "inside" || ticket.visitStatus === "exited") {
+            return fail("ALREADY_SCANNED", "This ticket has already been used for entry.", ticket);
+          }
+          if (currentAttraction.currentVisitors + ticket.paxCount > currentAttraction.capacity) {
+            return fail("CAPACITY_FULL", "Admitting this group would exceed attraction capacity.", ticket);
+          }
+        } else if (ticket.visitStatus !== "inside") {
+          return fail("ALREADY_SCANNED", "This ticket does not have an active entry to exit.", ticket);
+        }
+
+        const verification: VerificationResult = {
+          status: "VERIFIED_VALID",
+          message:
+            mode === "ENTRY"
+              ? `Verified for ${ticket.paxCount} visitor(s). Admission approved.`
+              : `Exit scan confirmed for ${ticket.paxCount} visitor(s).`,
+          ticket,
+          scanMode: mode,
+          timestamp,
+        };
+        setLastVerification(verification);
+        return verification;
+      } catch (error) {
+        console.error("Unable to verify ticket:", error);
+        return fail(
+          "INVALID_CODE",
+          "Ticket verification is unavailable. Check your connection and permissions."
+        );
+      }
+    },
+    [addDeniedLog, currentAttraction, isQueuePaused, scanMode]
+  );
+
+  const confirmAdmission = useCallback(
+    async (verification: VerificationResult): Promise<boolean> => {
+      if (!verification.ticket || !currentAttraction) return false;
+      const ticket = verification.ticket;
+      const bookingRef = doc(db, "bookings", ticket.bookingRef);
+      const attractionRef = doc(db, "attractions", currentAttraction.id);
+      const logRef = doc(collection(db, "visitorLogs"));
+
+      try {
+        await runTransaction(db, async (transaction) => {
+          const [bookingSnapshot, attractionSnapshot] = await Promise.all([
+            transaction.get(bookingRef),
+            transaction.get(attractionRef),
+          ]);
+          if (!bookingSnapshot.exists() || !attractionSnapshot.exists()) {
+            throw new Error("The booking or attraction no longer exists.");
+          }
+          const booking = bookingSnapshot.data();
+          const attraction = attractionSnapshot.data();
+          const currentVisitors = attraction.currentVisitors;
+          const capacity = attraction.capacity;
+          const pax = booking.numberOfVisitors;
+          if (typeof currentVisitors !== "number" || typeof capacity !== "number") {
+            throw new Error("Occupancy data is unavailable for this attraction.");
+          }
+          if (
+            booking.paymentStatus !== "paid" ||
+            booking.status !== "confirmed" ||
+            booking.ticketStatus !== "active"
+          ) {
+            throw new Error("This ticket is no longer active.");
+          }
+
+          const isEntry = verification.scanMode === "ENTRY";
+          if (isEntry) {
+            if (booking.visitStatus === "inside" || booking.visitStatus === "exited") {
+              throw new Error("This ticket has already been used.");
+            }
+            if (attraction.queuePaused === true) {
+              throw new Error("Entry is paused at this station.");
+            }
+            if (currentVisitors + pax > capacity) {
+              throw new Error("There is not enough remaining capacity.");
+            }
+          } else {
+            if (booking.visitStatus !== "inside" || currentVisitors < pax) {
+              throw new Error("This ticket does not have an active entry.");
+            }
+          }
+
+          const eventType = isEntry ? "ENTRY" : "EXIT";
+          transaction.update(bookingRef, {
+            visitStatus: isEntry ? "inside" : "exited",
+            updatedAt: serverTimestamp(),
+          });
+          transaction.update(attractionRef, {
+            currentVisitors: currentVisitors + (isEntry ? pax : -pax),
+            updatedAt: serverTimestamp(),
+          });
+          transaction.set(logRef, {
+            bookingId: ticket.bookingRef,
+            ticketId: ticket.ticketId,
+            visitorName: ticket.visitorName,
+            attractionId: currentAttraction.id,
+            attractionName: currentAttraction.name,
+            eventType,
+            pax,
+            verifiedBy: staffName || "—",
+            createdAt: serverTimestamp(),
+          });
+        });
+        setLastVerification(null);
+        return true;
+      } catch (error) {
+        console.error("Unable to record visitor movement:", error);
+        setLastVerification({
+          status: "INVALID_CODE",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to record this visitor movement.",
+          ticket,
+          scanMode: verification.scanMode,
+          timestamp: new Date().toLocaleTimeString(),
+        });
+        return false;
+      }
+    },
+    [currentAttraction, staffName]
+  );
+
+  const manualAdjustCount = useCallback(
+    async (delta: number, attractionId?: string) => {
+      const target = attractions.find((attraction) => attraction.id === attractionId) ?? currentAttraction;
+      if (!target || !Number.isInteger(delta) || delta === 0) return;
+      const attractionRef = doc(db, "attractions", target.id);
+      const logRef = doc(collection(db, "visitorLogs"));
+      try {
+        await runTransaction(db, async (transaction) => {
+          const snapshot = await transaction.get(attractionRef);
+          if (!snapshot.exists()) throw new Error("The attraction record no longer exists.");
+          const attraction = snapshot.data();
+          if (
+            typeof attraction.currentVisitors !== "number" ||
+            typeof attraction.capacity !== "number"
+          ) {
+            throw new Error("Occupancy data is unavailable for this attraction.");
+          }
+          const nextCount = attraction.currentVisitors + delta;
+          if (nextCount < 0 || nextCount > attraction.capacity) {
+            throw new Error("The headcount adjustment is outside the attraction capacity.");
+          }
+          transaction.update(attractionRef, {
+            currentVisitors: nextCount,
+            updatedAt: serverTimestamp(),
+          });
+          transaction.set(logRef, {
+            ticketId: "MANUAL",
+            visitorName: "Manual headcount adjustment",
+            attractionId: target.id,
+            attractionName: target.name,
+            eventType: delta > 0 ? "ENTRY" : "EXIT",
+            pax: Math.abs(delta),
+            verifiedBy: staffName || "—",
+            createdAt: serverTimestamp(),
+          });
+        });
+      } catch (error) {
+        console.error("Unable to adjust visitor count:", error);
+        setLastVerification({
+          status: "CAPACITY_FULL",
+          message: error instanceof Error ? error.message : "Unable to adjust the visitor count.",
+          ticket: null,
+          scanMode,
+          timestamp: new Date().toLocaleTimeString(),
+        });
+      }
+    },
+    [attractions, currentAttraction, scanMode, staffName]
+  );
+
+  const today = localDate(new Date());
+  const totalEntriesToday = logs
+    .filter((log) => log.eventType === "ENTRY" && log.dateKey === today)
+    .reduce((sum, log) => sum + log.pax, 0);
+  const totalExitsToday = logs
+    .filter((log) => log.eventType === "EXIT" && log.dateKey === today)
+    .reduce((sum, log) => sum + log.pax, 0);
 
   return {
     attractions,
     currentAttraction,
-    activeAttractionName,
+    activeAttractionName: currentAttraction?.name ?? "",
     setActiveAttractionName,
     scanMode,
     setScanMode,
     isQueuePaused,
     setIsQueuePaused,
     logs,
+    logsLoading,
+    logsError,
+    attractionsLoading,
+    attractionsError,
     lastVerification,
     setLastVerification,
     verifyAndProcessCode,
@@ -560,4 +573,3 @@ export function useStaffOperations(assignedAttractionName: string = "Mirage Walk
     totalExitsToday,
   };
 }
-

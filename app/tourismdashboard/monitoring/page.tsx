@@ -1,8 +1,10 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import AdminNav from "../AdminNav";
+import { useLiveCollection } from "../../lib/firestore";
+import type { AttractionRecord, VisitorLogRecord } from "../../lib/models";
 import {
   Users,
   MapPin,
@@ -22,12 +24,12 @@ type VerificationStatus = "Verified" | "Invalid";
 type VisitStatus = "Inside" | "Exited" | "Denied";
 
 interface AttractionMonitoring {
-  id: number;
+  id: string;
   name: string;
   location: string;
   type: AttractionType;
-  currentVisitors: number;
-  capacity: number;
+  currentVisitors: number | null;
+  capacity: number | null;
 }
 
 interface VisitorRecord {
@@ -35,151 +37,13 @@ interface VisitorRecord {
   visitorName: string;
   bookingId: string;
   ticketId: string;
-  attractionId: number;
+  attractionId: string;
   verification: VerificationStatus;
   visitStatus: VisitStatus;
   entryTime: string | null;
   exitTime: string | null;
   verifiedBy: string | null;
 }
-
-const monitoringData: AttractionMonitoring[] = [
-  {
-    id: 1,
-    name: "Mirage Walk",
-    location: "East Wing",
-    type: "Paid",
-    currentVisitors: 8,
-    capacity: 20,
-  },
-  {
-    id: 2,
-    name: "View Deck",
-    location: "Summit",
-    type: "Paid",
-    currentVisitors: 35,
-    capacity: 50,
-  },
-  {
-    id: 3,
-    name: "Glass Walk",
-    location: "West Wing",
-    type: "Paid",
-    currentVisitors: 15,
-    capacity: 15,
-  },
-  {
-    id: 4,
-    name: "Miracle Walk",
-    location: "Main Path",
-    type: "Free",
-    currentVisitors: 12,
-    capacity: 30,
-  },
-  {
-    id: 5,
-    name: "Gate of the Archangels",
-    location: "Entrance",
-    type: "Free",
-    currentVisitors: 45,
-    capacity: 60,
-  },
-  {
-    id: 6,
-    name: "Sto. Niño Chapel",
-    location: "Central Garden",
-    type: "Free",
-    currentVisitors: 28,
-    capacity: 40,
-  },
-];
-
-const visitorRecords: VisitorRecord[] = [
-  {
-    id: "VIS-1001",
-    visitorName: "Juan Dela Cruz",
-    bookingId: "BK-1001",
-    ticketId: "QR-1001",
-    attractionId: 1,
-    verification: "Verified",
-    visitStatus: "Exited",
-    entryTime: "2026-11-08T08:30:00",
-    exitTime: "2026-11-08T09:15:00",
-    verifiedBy: "Mark Anthony Reyes",
-  },
-  {
-    id: "VIS-1002",
-    visitorName: "Maria Santos",
-    bookingId: "BK-1002",
-    ticketId: "QR-1002",
-    attractionId: 2,
-    verification: "Verified",
-    visitStatus: "Inside",
-    entryTime: "2026-11-08T09:10:00",
-    exitTime: null,
-    verifiedBy: "Jessica Mendoza",
-  },
-  {
-    id: "VIS-1003",
-    visitorName: "Carlo Reyes",
-    bookingId: "BK-1003",
-    ticketId: "QR-1003",
-    attractionId: 3,
-    verification: "Verified",
-    visitStatus: "Inside",
-    entryTime: "2026-11-08T09:35:00",
-    exitTime: null,
-    verifiedBy: "Daniel Cruz",
-  },
-  {
-    id: "VIS-1004",
-    visitorName: "Angela Cruz",
-    bookingId: "BK-1004",
-    ticketId: "QR-1004",
-    attractionId: 1,
-    verification: "Invalid",
-    visitStatus: "Denied",
-    entryTime: null,
-    exitTime: null,
-    verifiedBy: "Mark Anthony Reyes",
-  },
-  {
-    id: "VIS-1005",
-    visitorName: "Paolo Garcia",
-    bookingId: "BK-1005",
-    ticketId: "QR-1005",
-    attractionId: 4,
-    verification: "Verified",
-    visitStatus: "Exited",
-    entryTime: "2026-11-08T10:00:00",
-    exitTime: "2026-11-08T10:40:00",
-    verifiedBy: "Mark Anthony Reyes",
-  },
-  {
-    id: "VIS-1006",
-    visitorName: "Sofia Mendoza",
-    bookingId: "BK-1006",
-    ticketId: "QR-1006",
-    attractionId: 5,
-    verification: "Verified",
-    visitStatus: "Inside",
-    entryTime: "2026-11-08T10:15:00",
-    exitTime: null,
-    verifiedBy: "Jessica Mendoza",
-  },
-  {
-    id: "VIS-1007",
-    visitorName: "Gabriel Torres",
-    bookingId: "BK-1007",
-    ticketId: "QR-1007",
-    attractionId: 6,
-    verification: "Verified",
-    visitStatus: "Exited",
-    entryTime: "2026-11-08T08:45:00",
-    exitTime: "2026-11-08T09:30:00",
-    verifiedBy: "Daniel Cruz",
-  },
-];
 
 const occupancyLegend = [
   {
@@ -202,9 +66,23 @@ const occupancyLegend = [
     range: "100%",
     dot: "bg-[#B76B73]",
   },
+  {
+    label: "Unavailable",
+    range: "Data unavailable",
+    dot: "bg-gray-300",
+  },
 ];
 
-function getOccupancyStatus(current: number, capacity: number) {
+function getOccupancyStatus(current: number | null, capacity: number | null) {
+  if (current === null || capacity === null || capacity <= 0) {
+    return {
+      label: "Unavailable",
+      text: "text-gray-500",
+      dot: "bg-gray-300",
+      bar: "bg-gray-300",
+    };
+  }
+
   const percentage =
     capacity > 0 ? Math.round((current / capacity) * 100) : 0;
 
@@ -295,6 +173,41 @@ function VisitBadge({ status }: { status: VisitStatus }) {
 }
 
 export default function MonitoringPage() {
+  const { records: attractionRecords, loading: attractionsLoading, error: attractionsError } =
+    useLiveCollection<AttractionRecord>("attractions");
+  const { records: logRecords, loading: logsLoading, error: logsError } =
+    useLiveCollection<VisitorLogRecord>("visitorLogs");
+  const monitoringData: AttractionMonitoring[] = attractionRecords.map((record) => ({
+    id: record.id,
+    name: record.name ?? "—",
+    location: record.location ?? "—",
+    type: record.type,
+    currentVisitors: typeof record.currentVisitors === "number" ? record.currentVisitors : null,
+    capacity: typeof record.capacity === "number" ? record.capacity : null,
+  }));
+  const visitorRecords: VisitorRecord[] = logRecords.map((record) => {
+    const time =
+      typeof record.createdAt === "string"
+        ? record.createdAt
+        : record.createdAt &&
+            typeof record.createdAt === "object" &&
+            "toDate" in record.createdAt &&
+            typeof record.createdAt.toDate === "function"
+          ? record.createdAt.toDate().toISOString()
+          : null;
+    return {
+      id: record.id,
+      visitorName: record.visitorName ?? "—",
+      bookingId: record.bookingId ?? "—",
+      ticketId: record.ticketId ?? "—",
+      attractionId: record.attractionId,
+      verification: record.eventType === "DENIED" ? "Invalid" : "Verified",
+      visitStatus: record.eventType === "ENTRY" ? "Inside" : record.eventType === "EXIT" ? "Exited" : "Denied",
+      entryTime: record.eventType === "ENTRY" ? time : null,
+      exitTime: record.eventType === "EXIT" ? time : null,
+      verifiedBy: record.verifiedBy ?? null,
+    };
+  });
   const [attractionSearch, setAttractionSearch] = useState("");
   const [typeFilter, setTypeFilter] =
     useState<"All" | AttractionType>("All");
@@ -308,31 +221,42 @@ export default function MonitoringPage() {
     useState<VisitorRecord | null>(null);
 
   const totalVisitors = monitoringData.reduce(
-    (total, attraction) => total + attraction.currentVisitors,
+    (total, attraction) => total + (attraction.currentVisitors ?? 0),
     0
   );
 
   const totalCapacity = monitoringData.reduce(
-    (total, attraction) => total + attraction.capacity,
+    (total, attraction) => total + (attraction.capacity ?? 0),
     0
   );
+
+  const occupancyComplete = monitoringData.every(
+    (attraction) =>
+      attraction.currentVisitors !== null &&
+      attraction.capacity !== null &&
+      attraction.capacity > 0
+  ) && monitoringData.length > 0;
 
   const availableCapacity = monitoringData.reduce(
     (total, attraction) =>
       total +
-      Math.max(0, attraction.capacity - attraction.currentVisitors),
+      (attraction.capacity !== null && attraction.currentVisitors !== null
+        ? Math.max(0, attraction.capacity - attraction.currentVisitors)
+        : 0),
     0
   );
 
   const fullAttractions = monitoringData.filter(
     (attraction) =>
+      attraction.currentVisitors !== null &&
+      attraction.capacity !== null &&
       attraction.currentVisitors >= attraction.capacity
   ).length;
 
   const overallPercentage =
-    totalCapacity > 0
+    occupancyComplete && !attractionsLoading && !attractionsError && totalCapacity > 0
       ? Math.round((totalVisitors / totalCapacity) * 100)
-      : 0;
+      : null;
 
   const totalEntries = visitorRecords.filter(
     (record) => record.entryTime !== null
@@ -346,84 +270,80 @@ export default function MonitoringPage() {
     (record) => record.visitStatus === "Denied"
   ).length;
 
-  const filteredAttractions = useMemo(() => {
+  const filteredAttractions = monitoringData.filter((attraction) => {
     const query = attractionSearch.trim().toLowerCase();
 
-    return monitoringData.filter((attraction) => {
-      const matchesSearch =
-        attraction.name.toLowerCase().includes(query) ||
-        attraction.location.toLowerCase().includes(query);
+    const matchesSearch =
+      attraction.name.toLowerCase().includes(query) ||
+      attraction.location.toLowerCase().includes(query);
 
-      const matchesType =
-        typeFilter === "All" || attraction.type === typeFilter;
+    const matchesType =
+      typeFilter === "All" || attraction.type === typeFilter;
 
-      const occupancy = getOccupancyStatus(
-        attraction.currentVisitors,
-        attraction.capacity
-      ).label;
+    const occupancy = getOccupancyStatus(
+      attraction.currentVisitors,
+      attraction.capacity
+    ).label;
 
-      const matchesOccupancy =
-        occupancyFilter === "All" ||
-        occupancyFilter === occupancy;
+    const matchesOccupancy =
+      occupancyFilter === "All" ||
+      occupancyFilter === occupancy;
 
-      return matchesSearch && matchesType && matchesOccupancy;
-    });
-  }, [attractionSearch, typeFilter, occupancyFilter]);
+    return matchesSearch && matchesType && matchesOccupancy;
+  });
 
-  const filteredVisitorRecords = useMemo(() => {
+  const filteredVisitorRecords = visitorRecords.filter((record) => {
     const query = visitorSearch.trim().toLowerCase();
 
-    return visitorRecords.filter((record) => {
-      const attraction = monitoringData.find(
-        (item) => item.id === record.attractionId
-      );
+    const attraction = monitoringData.find(
+      (item) => item.id === record.attractionId
+    );
 
-      const matchesSearch = [
-        record.id,
-        record.visitorName,
-        record.bookingId,
-        record.ticketId,
-        record.verifiedBy ?? "",
-        attraction?.name ?? "",
-      ].some((value) => value.toLowerCase().includes(query));
+    const matchesSearch = [
+      record.id,
+      record.visitorName,
+      record.bookingId,
+      record.ticketId,
+      record.verifiedBy ?? "",
+      attraction?.name ?? "",
+    ].some((value) => value.toLowerCase().includes(query));
 
-      const matchesVisit =
-        visitFilter === "All" ||
-        record.visitStatus === visitFilter;
+    const matchesVisit =
+      visitFilter === "All" ||
+      record.visitStatus === visitFilter;
 
-      const matchesAttraction =
-        attractionFilter === "All" ||
-        record.attractionId.toString() === attractionFilter;
+    const matchesAttraction =
+      attractionFilter === "All" ||
+      record.attractionId.toString() === attractionFilter;
 
-      return matchesSearch && matchesVisit && matchesAttraction;
-    });
-  }, [visitorSearch, visitFilter, attractionFilter]);
+    return matchesSearch && matchesVisit && matchesAttraction;
+  });
 
   const summaryCards = [
     {
       title: "Current Visitors",
-      value: totalVisitors,
+      value: occupancyComplete && !attractionsLoading && !attractionsError ? totalVisitors : "—",
       description: "Visitors currently inside attractions",
       icon: Users,
       color: "text-gray-900",
     },
     {
       title: "Total Capacity",
-      value: totalCapacity,
+      value: occupancyComplete && !attractionsLoading && !attractionsError ? totalCapacity : "—",
       description: "Combined attraction capacity",
       icon: MapPin,
       color: "text-gray-900",
     },
     {
       title: "Available Capacity",
-      value: availableCapacity,
+      value: occupancyComplete && !attractionsLoading && !attractionsError ? availableCapacity : "—",
       description: "Remaining simultaneous visitor capacity",
       icon: LogIn,
       color: "text-[#4D8067]",
     },
     {
       title: "Full Attractions",
-      value: fullAttractions,
+      value: occupancyComplete && !attractionsLoading && !attractionsError ? fullAttractions : "—",
       description: "Attractions at maximum capacity",
       icon: AlertTriangle,
       color: "text-[#A45460]",
@@ -442,7 +362,7 @@ export default function MonitoringPage() {
     setAttractionFilter("All");
   }
 
-  function getAttractionName(id: number) {
+  function getAttractionName(id: string) {
     return (
       monitoringData.find((attraction) => attraction.id === id)
         ?.name ?? "Unknown Attraction"
@@ -486,28 +406,26 @@ export default function MonitoringPage() {
               </div>
 
               <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
-                <span className="h-2.5 w-2.5 rounded-full bg-gray-400" />
+                <span className={`h-2.5 w-2.5 rounded-full ${(attractionsLoading || logsLoading) ? "animate-pulse bg-amber-400" : attractionsError || logsError ? "bg-red-500" : "bg-emerald-500"}`} />
 
                 <div>
                   <p className="text-xs font-bold text-gray-800">
-                    Sample Data
+                    {(attractionsLoading || logsLoading) ? "Connecting" : attractionsError || logsError ? "Unavailable" : "Live Data"}
                   </p>
 
                   <p className="mt-1 text-xs text-gray-400">
-                    Not connected to live records
+                    Firestore occupancy and visit records
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* SAMPLE DATA NOTICE */}
-          <div className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs leading-5 text-gray-500">
-            Demonstration data only. Occupancy counts are sample
-            totals, while the visitor records below are
-            illustrative entries and do not represent the
-            complete set of visitors included in those totals.
-          </div>
+          {(attractionsError || logsError) && (
+            <p role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {attractionsError || logsError}
+            </p>
+          )}
 
           {/* SUMMARY CARDS */}
           <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -560,12 +478,14 @@ export default function MonitoringPage() {
                     fontFamily: "var(--font-montemaria-sans)",
                   }}
                 >
-                  {totalVisitors} / {totalCapacity} Visitors
+                  {occupancyComplete && !attractionsLoading && !attractionsError
+                    ? `${totalVisitors} / ${totalCapacity}`
+                    : "— / —"} Visitors
                 </h2>
               </div>
 
               <p className="text-2xl font-bold text-gray-900">
-                {overallPercentage}%
+                {overallPercentage === null ? "—" : `${overallPercentage}%`}
               </p>
             </div>
 
@@ -573,14 +493,13 @@ export default function MonitoringPage() {
               <div
                 className="h-full rounded-full bg-[#6B9B83] transition-all duration-500"
                 style={{
-                  width: `${Math.min(overallPercentage, 100)}%`,
+                  width: `${Math.min(overallPercentage ?? 0, 100)}%`,
                 }}
               />
             </div>
 
             <p className="mt-3 text-xs text-gray-400">
-              Percentage of combined attraction capacity currently
-              occupied in this sample dataset.
+              Percentage of combined attraction capacity currently occupied.
             </p>
           </section>
 
@@ -651,6 +570,7 @@ export default function MonitoringPage() {
                   <option value="Moderate">Moderate</option>
                   <option value="Busy">Busy</option>
                   <option value="Full">Full</option>
+                  <option value="Unavailable">Unavailable</option>
                 </select>
 
                 <button
@@ -686,24 +606,24 @@ export default function MonitoringPage() {
             <div className="grid gap-5 p-6 md:grid-cols-2 xl:grid-cols-3">
               {filteredAttractions.map((attraction) => {
                 const rawPercentage =
-                  attraction.capacity > 0
-                    ? (attraction.currentVisitors /
-                        attraction.capacity) *
-                      100
-                    : 0;
-
-                const percentage = Math.round(rawPercentage);
+                  attraction.capacity !== null &&
+                  attraction.capacity > 0 &&
+                  attraction.currentVisitors !== null
+                    ? (attraction.currentVisitors / attraction.capacity) * 100
+                    : null;
+                const percentage =
+                  rawPercentage === null ? null : Math.round(rawPercentage);
 
                 const status = getOccupancyStatus(
                   attraction.currentVisitors,
                   attraction.capacity
                 );
 
-                const remaining = Math.max(
-                  0,
-                  attraction.capacity -
-                    attraction.currentVisitors
-                );
+                const remaining =
+                  attraction.capacity !== null &&
+                  attraction.currentVisitors !== null
+                    ? Math.max(0, attraction.capacity - attraction.currentVisitors)
+                    : null;
 
                 return (
                   <div
@@ -764,18 +684,18 @@ export default function MonitoringPage() {
                               fontFamily: "var(--font-montemaria-sans)",
                             }}
                           >
-                            {attraction.currentVisitors}
+                            {attraction.currentVisitors ?? "—"}
                           </span>
 
                           <span className="ml-1 text-lg text-gray-400">
-                            / {attraction.capacity}
+                            / {attraction.capacity ?? "—"}
                           </span>
                         </div>
 
                         <span
                           className={`text-lg font-bold ${status.text}`}
                         >
-                          {percentage}%
+                          {percentage === null ? "—" : `${percentage}%`}
                         </span>
                       </div>
                     </div>
@@ -785,7 +705,7 @@ export default function MonitoringPage() {
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${status.bar}`}
                         style={{
-                          width: `${Math.min(rawPercentage, 100)}%`,
+                          width: `${Math.min(rawPercentage ?? 0, 100)}%`,
                         }}
                       />
                     </div>
@@ -798,7 +718,7 @@ export default function MonitoringPage() {
                         </p>
 
                         <p className="mt-1 text-sm font-bold text-gray-800">
-                          {attraction.capacity}
+                          {attraction.capacity ?? "—"}
                         </p>
                       </div>
 
@@ -808,12 +728,12 @@ export default function MonitoringPage() {
                         </p>
 
                         <p className="mt-1 text-sm font-bold text-gray-800">
-                          {remaining}
+                          {remaining ?? "—"}
                         </p>
                       </div>
                     </div>
 
-                    {rawPercentage >= 100 && (
+                    {rawPercentage !== null && rawPercentage >= 100 && (
                       <div className="mt-4 rounded-xl border border-[#EACBD0] bg-[#F8EBED] px-4 py-3">
                         <p className="text-xs font-semibold text-[#A45460]">
                           This attraction has reached its maximum
@@ -826,14 +746,18 @@ export default function MonitoringPage() {
               })}
             </div>
 
-            {filteredAttractions.length === 0 && (
+            {attractionsLoading ? (
+              <p className="px-6 py-12 text-center text-sm text-gray-500">Loading attraction records…</p>
+            ) : !attractionsError && filteredAttractions.length === 0 && (
               <div className="px-6 py-16 text-center">
                 <p className="text-lg font-bold text-gray-800">
                   No attractions found
                 </p>
 
                 <p className="mt-2 text-sm text-gray-500">
-                  Try changing your search or filters.
+                  {monitoringData.length === 0
+                    ? "No attraction records are available."
+                    : "Try changing your search or filters."}
                 </p>
               </div>
             )}
@@ -860,19 +784,19 @@ export default function MonitoringPage() {
             {[
               {
                 title: "Recorded Entries",
-                value: totalEntries,
+                value: logsLoading || logsError ? "—" : totalEntries,
                 icon: LogIn,
                 color: "text-gray-900",
               },
               {
                 title: "Recorded Exits",
-                value: totalExits,
+                value: logsLoading || logsError ? "—" : totalExits,
                 icon: LogOut,
                 color: "text-[#4D8067]",
               },
               {
                 title: "Denied Entries",
-                value: deniedEntries,
+                value: logsLoading || logsError ? "—" : deniedEntries,
                 icon: TicketCheck,
                 color: "text-[#A45460]",
               },
@@ -1011,7 +935,7 @@ export default function MonitoringPage() {
                 </thead>
 
                 <tbody className="divide-y divide-gray-100">
-                  {filteredVisitorRecords.map((record) => (
+                  {!logsLoading && !logsError && filteredVisitorRecords.map((record) => (
                     <tr
                       key={record.id}
                       className="transition-colors hover:bg-gray-50/70"
@@ -1068,22 +992,25 @@ export default function MonitoringPage() {
               </table>
             </div>
 
-            {filteredVisitorRecords.length === 0 && (
+            {logsLoading ? (
+              <p className="px-6 py-12 text-center text-sm text-gray-500">Loading visitor records…</p>
+            ) : !logsError && filteredVisitorRecords.length === 0 && (
               <div className="px-6 py-16 text-center">
                 <p className="text-lg font-bold text-gray-800">
                   No visitor records found
                 </p>
 
                 <p className="mt-2 text-sm text-gray-500">
-                  Try changing your search or filters.
+                  {visitorRecords.length === 0
+                    ? "No visitor records are available."
+                    : "Try changing your search or filters."}
                 </p>
               </div>
             )}
 
             <div className="border-t border-gray-100 bg-gray-50/50 px-6 py-4">
               <p className="text-xs text-gray-400">
-                Showing {filteredVisitorRecords.length} of{" "}
-                {visitorRecords.length} sample visitor records
+                Showing {filteredVisitorRecords.length} of {visitorRecords.length} visitor records
               </p>
             </div>
           </section>
@@ -1256,10 +1183,9 @@ export default function MonitoringPage() {
                   />
 
                   <p className="text-xs leading-5 text-gray-500">
-                    These are demonstration records. Actual QR
-                    verification and visitor entry/exit updates
-                    must be recorded through the Staff module
-                    and stored in the database.
+                    This record is sourced from the visitor activity
+                    log. Admission and exit records are written by
+                    the Staff module.
                   </p>
                 </div>
               </div>
