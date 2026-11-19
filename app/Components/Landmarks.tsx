@@ -47,7 +47,7 @@ const landmarks = [
 
 export default function Landmarks() {
   return (
-    <section id="landmarks" className="bg-[#f5f5f7] py-16 md:py-20">
+    <section id="landmarks" className="bg-[#f5f5f7] py-8 md:py-10">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
 
         {/* HEADER */}

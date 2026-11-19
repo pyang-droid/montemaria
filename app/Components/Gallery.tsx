@@ -85,7 +85,7 @@ export default function Gallery() {
 
   return (
     <>
-      <section id="gallery" className="bg-white py-16 md:py-20">
+      <section id="gallery" className="bg-white py-8 md:py-10">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
 
           {/* HEADER */}

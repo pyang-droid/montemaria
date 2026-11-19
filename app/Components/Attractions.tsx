@@ -99,7 +99,7 @@ export default function Attractions({
   return (
     <section
       id="attractions"
-      className="bg-white py-16 text-gray-900 md:py-20"
+      className="bg-white pb-16 pt-8 text-gray-900 md:pb-20 md:pt-10"
     >
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
 

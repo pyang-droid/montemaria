@@ -121,7 +121,7 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && !user) {
-      router.replace("/login");
+      router.replace("/");
     }
   }, [isLoading, router, user]);
 
@@ -156,7 +156,7 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // 2. Unauthenticated users continue through the shared login page.
+  // 2. Unauthenticated users return to the public homepage.
   if (!user) {
     return (
       <div className="min-h-screen bg-[#f5f5f7] flex flex-col items-center justify-center p-6">
@@ -166,7 +166,7 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
           className="h-16 w-16 object-contain mb-4 animate-pulse"
         />
         <p className="text-sm text-[#86868b]">
-          Redirecting to the shared sign-in page...
+          Returning to the Montemaria homepage...
         </p>
       </div>
     );
