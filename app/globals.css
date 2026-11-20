@@ -9,6 +9,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand-red: #c1122f;
+  --color-brand-red-dark: #9e0e26;
   --font-sans: var(--font-montemaria-sans);
   --font-serif: var(--font-montemaria-sans);
   --font-mono: var(--font-montemaria-sans);

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "../lib/firebase"; // Import Firestore database instance
 import { doc, setDoc } from "firebase/firestore";
+import SignupProfileFields, { readSignupProfile } from "../Components/SignupProfileFields";
 import { getFirebaseErrorCode } from "../lib/firebaseErrors";
 
 export default function SignUpPage() {
@@ -22,7 +23,7 @@ export default function SignUpPage() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
     setSuccess("");
@@ -39,6 +40,12 @@ export default function SignUpPage() {
       return;
     }
 
+    const profile = readSignupProfile(e.currentTarget);
+    if (!profile) {
+      setError("Enter your first name, last name, username, and mobile number.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -51,6 +58,7 @@ export default function SignUpPage() {
         email: user.email ?? email,
         createdAt: new Date().toISOString(),
         role: "visitor",
+        ...profile,
       });
       
       setSuccess("Account registered successfully as Visitor! Redirecting...");
@@ -169,6 +177,8 @@ export default function SignUpPage() {
             )}
 
             {/* Email Field Wrapper */}
+            <SignupProfileFields disabled={loading} />
+
             <div>
               <label
                 htmlFor="email"

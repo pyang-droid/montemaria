@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
+import SignupProfileFields, { readSignupProfile } from "./SignupProfileFields";
 import { getFirebaseErrorCode } from "../lib/firebaseErrors";
 
 interface SignUpModalProps {
@@ -31,7 +32,7 @@ export default function SignUpModal({
 
   if (!isOpen) return null;
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     setError("");
@@ -46,6 +47,12 @@ export default function SignUpModal({
       setError(
         "You must agree to the Terms of Service and Privacy Policy."
       );
+      return;
+    }
+
+    const profile = readSignupProfile(e.currentTarget);
+    if (!profile) {
+      setError("Enter your first name, last name, username, and mobile number.");
       return;
     }
 
@@ -65,6 +72,7 @@ export default function SignUpModal({
         email: user.email ?? email,
         createdAt: new Date().toISOString(),
         role: "visitor",
+        ...profile,
       });
 
       setSuccess("Account created successfully!");
@@ -171,6 +179,8 @@ export default function SignUpModal({
           )}
 
           {/* EMAIL */}
+          <SignupProfileFields disabled={loading} />
+
           <div>
             <label
               htmlFor="signup-email"
