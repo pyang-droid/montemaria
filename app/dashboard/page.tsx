@@ -1,11 +1,13 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addDoc,
   collection,
   doc,
+  getDoc,
+  setDoc,
   onSnapshot,
   serverTimestamp,
 } from "firebase/firestore";
@@ -23,9 +25,9 @@ import BookingModal, {
   type DailyBookingActivity,
 } from "./components/BookingModal";
 
-import PaymentModal, {
-  type PaymentMethod,
-} from "./components/PaymentModal";
+import PaymentModal from "./components/PaymentModal";
+import MyBookings from "./components/MyBookings";
+import { getPaymentQrCodes, type PaymentMethod } from "../lib/qrPayment";
 
 import { auth, db } from "../lib/firebase";
 import { useLiveCollection } from "../lib/firestore";
@@ -81,8 +83,8 @@ export default function DashboardPage() {
   const [filter, setFilter] =
     useState<AttractionFilter>("all");
 
-  const [selectedAttraction, setSelectedAttraction] =
-    useState<Attraction | null>(null);
+  const [selectedAttractionId, setSelectedAttractionId] = useState<string | null>(null);
+  const selectedAttraction = attractions.find(({ id }) => id === selectedAttractionId);
 
   const [showBookingModal, setShowBookingModal] =
     useState(false);
@@ -90,6 +92,7 @@ export default function DashboardPage() {
   const [showPaymentModal, setShowPaymentModal] =
     useState(false);
 
+  const pendingBookingId = useRef<string | null>(null);
   const [currentBooking, setCurrentBooking] =
     useState<BookingDetails | null>(null);
 
@@ -151,7 +154,7 @@ export default function DashboardPage() {
   const handleViewDetails = (
     attraction: Attraction
   ) => {
-    setSelectedAttraction(attraction);
+    setSelectedAttractionId(attraction.id);
 
     setShowBookingModal(false);
     setShowPaymentModal(false);
@@ -168,7 +171,7 @@ export default function DashboardPage() {
   // ==========================================
 
   const handleCloseDetails = () => {
-    setSelectedAttraction(null);
+    setSelectedAttractionId(null);
 
     setShowBookingModal(false);
     setShowPaymentModal(false);
@@ -225,6 +228,7 @@ export default function DashboardPage() {
       return;
     }
 
+    pendingBookingId.current = doc(collection(db, "bookings")).id;
     setCurrentBooking(booking);
 
     setPaymentError(null);
@@ -242,28 +246,45 @@ export default function DashboardPage() {
     setPaymentError(null);
   };
 
-  // ==========================================
-  // PROCESS PAYMENT
-  // FRONTEND ONLY
-  // ==========================================
-
   const handleProcessPayment = async (
     booking: BookingDetails,
-    method: PaymentMethod
-  ): Promise<void> => {
-    if (!booking || !method) {
-      throw new Error(
-        "Please complete your booking and select a payment method."
-      );
+    method: PaymentMethod,
+    reference: string
+  ) => {
+    const user = auth.currentUser;
+    const bookingId = pendingBookingId.current;
+    if (!user || !bookingId) throw new Error("Sign in to submit your payment reference.");
+
+    const attraction = attractions.find(({ id }) => id === booking.attractionId);
+    const qr = attraction && getPaymentQrCodes(attraction.name);
+    if (attraction?.status !== "Open" || !qr?.[method] || booking.numberOfVisitors !== 1 ||
+        qr.amount !== booking.totalAmount || qr.amount !== attraction?.price) {
+      throw new Error("QR payment is unavailable for this booking.");
     }
 
-    const message =
-      "Payment processing is not yet available. " +
-      "GCash and Maya integration will be added " +
-      "during backend development.";
-
-    setPaymentError(message);
-    throw new Error(message);
+    const bookingRef = doc(db, "bookings", bookingId);
+    await setDoc(bookingRef, {
+      userId: user.uid,
+      visitor: user.displayName || user.email || "Visitor",
+      email: user.email ?? "",
+      attractionId: booking.attractionId,
+      attractionName: booking.attractionName,
+      bookingDate: booking.bookingDate,
+      bookingTime: booking.bookingTime,
+      numberOfVisitors: booking.numberOfVisitors,
+      amount: booking.totalAmount,
+      status: "pending",
+      paymentStatus: "pending",
+      paymentMethod: method,
+      transactionReference: reference,
+      createdAt: serverTimestamp(),
+    }).catch(async (error) => {
+      const existing = (await getDoc(bookingRef).catch(() => null))?.data();
+      if (existing?.userId === user.uid && existing.paymentMethod === method &&
+          existing.transactionReference === reference) return;
+      console.error("Unable to submit payment reference:", error);
+      throw new Error("Unable to submit your reference. Check your connection and retry using the same reference.");
+    });
   };
 
   // ==========================================
@@ -478,6 +499,8 @@ export default function DashboardPage() {
               </p>
             </div>
           )}
+
+          <MyBookings />
 
           {/* ==================================
               FOOTER NOTE

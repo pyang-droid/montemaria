@@ -4,26 +4,13 @@
 import { useState } from "react";
 import type { BookingDetails } from "./BookingModal";
 
-export type PaymentMethod = "gcash" | "maya";
-
-export interface VerifiedPaymentResult {
-  bookingId: string;
-  paymentId: string;
-  paymentMethod: PaymentMethod;
-  amount: number;
-  status: "paid";
-}
+import Image from "next/image";
+import { getPaymentQrCodes, paymentReferencePattern, type PaymentMethod } from "../../lib/qrPayment";
 
 interface PaymentModalProps {
   booking: BookingDetails;
   onClose: () => void;
-
-  // This callback must create a real payment session
-  // using a secure backend/payment gateway.
-  onProcessPayment: (
-    booking: BookingDetails,
-    method: PaymentMethod
-  ) => Promise<void>;
+  onProcessPayment: (booking: BookingDetails, method: PaymentMethod, reference: string) => Promise<void>;
 }
 
 export default function PaymentModal({
@@ -33,6 +20,15 @@ export default function PaymentModal({
 }: PaymentModalProps) {
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<PaymentMethod | null>(null);
+
+  const [reference, setReference] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const paymentQr = getPaymentQrCodes(booking.attractionName);
+  const qrCodes = booking.numberOfVisitors === 1 && paymentQr?.amount === booking.totalAmount
+    ? paymentQr
+    : undefined;
+  const qrImage = selectedPaymentMethod ? qrCodes?.[selectedPaymentMethod] : undefined;
+  const wallet = selectedPaymentMethod === "gcash" ? "GCash" : "Maya";
 
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
@@ -44,15 +40,19 @@ export default function PaymentModal({
     })}`;
 
   const handlePayment = async () => {
-    if (!selectedPaymentMethod || processing) return;
+    if (!selectedPaymentMethod || !qrImage || processing || submitted) return;
+    const normalizedReference = reference.trim().toUpperCase();
+    if (!paymentReferencePattern.test(normalizedReference)) {
+      setError("Enter the transaction reference from your wallet receipt.");
+      return;
+    }
 
     setError("");
     setProcessing(true);
 
     try {
-      // The parent page is responsible for connecting
-      // to the payment gateway through a secure backend.
-      await onProcessPayment(booking, selectedPaymentMethod);
+      await onProcessPayment(booking, selectedPaymentMethod, normalizedReference);
+      setSubmitted(true);
     } catch (err) {
       console.error("Payment initialization error:", err);
 
@@ -92,7 +92,7 @@ export default function PaymentModal({
           {/* HEADER */}
           <div className="pr-10 mb-6">
             <p className="text-xs uppercase tracking-[0.18em] text-gray-400 mb-2">
-              Secure Checkout
+              QR Checkout
             </p>
 
             <h2
@@ -165,9 +165,10 @@ export default function PaymentModal({
               {/* GCASH */}
               <button
                 type="button"
-                disabled={processing}
+                disabled={processing || submitted || !qrCodes}
                 onClick={() => {
                   setSelectedPaymentMethod("gcash");
+                  setReference("");
                   setError("");
                 }}
                 className={`rounded-2xl border-2 p-4 text-left transition-all disabled:opacity-60 ${
@@ -192,9 +193,10 @@ export default function PaymentModal({
               {/* MAYA */}
               <button
                 type="button"
-                disabled={processing}
+                disabled={processing || submitted || !qrCodes}
                 onClick={() => {
                   setSelectedPaymentMethod("maya");
+                  setReference("");
                   setError("");
                 }}
                 className={`rounded-2xl border-2 p-4 text-left transition-all disabled:opacity-60 ${
@@ -259,27 +261,56 @@ export default function PaymentModal({
             </div>
           )}
 
-          {/* PAY BUTTON */}
-          <button
-            type="button"
-            disabled={!selectedPaymentMethod || processing}
-            onClick={handlePayment}
-            className="w-full py-4 bg-gray-900 text-white rounded-xl font-semibold hover:bg-black transition-all disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
-          >
-            {processing
-              ? "Preparing Secure Checkout..."
-              : selectedPaymentMethod
-              ? `Proceed to Pay ${formatCurrency(
-                  booking.totalAmount
-                )}`
-              : "Select a Payment Method"}
-          </button>
-
-          <p className="text-center text-xs text-gray-400 mt-3 leading-5">
-            Payment will be completed through a secure
-            payment gateway. Your booking will only be
-            confirmed after payment verification.
-          </p>
+          {submitted ? (
+            <p role="status" className="rounded-xl bg-green-50 p-4 text-sm text-green-800">
+              Payment reference submitted. Check My Bookings for the verification status and ticket code.
+            </p>
+          ) : qrImage ? (
+            <form className="space-y-4" onSubmit={(event) => {
+              event.preventDefault();
+              void handlePayment();
+            }}>
+              <p className="text-sm text-gray-700">
+                Scan the QR with {wallet}, pay {formatCurrency(booking.totalAmount)}, then enter the reference from your receipt.
+              </p>
+              <Image
+                src={qrImage}
+                alt={`${wallet} payment QR for ${booking.attractionName}`}
+                width={320}
+                height={320}
+                unoptimized
+                className="mx-auto h-auto max-w-full bg-white p-3"
+              />
+              <a href={qrImage} download className="block text-center text-sm font-semibold text-blue-700 underline">
+                Download QR code
+              </a>
+              <label className="block text-sm font-semibold text-gray-900">
+                Transaction reference
+                <input
+                  value={reference}
+                  onChange={(event) => setReference(event.target.value)}
+                  required
+                  maxLength={40}
+                  disabled={processing}
+                  autoComplete="off"
+                  className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={processing}
+                className="w-full rounded-xl bg-gray-900 py-4 font-semibold text-white disabled:opacity-50"
+              >
+                {processing ? "Submitting..." : "Submit for verification"}
+              </button>
+            </form>
+          ) : !qrCodes ? (
+            <p role="status" className="text-sm text-gray-700">
+              {paymentQr && booking.numberOfVisitors > 1
+                ? "This QR charges for one visitor. Please make a separate booking for each visitor."
+                : "QR payment is unavailable for this booking."}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Attraction } from "./AttractionCard";
+import { getHourlyBookingTimes } from "./bookingTimes";
 import { generateBookingTimeOptions } from "../../lib/bookingSchedule";
 
 // ============================================
@@ -100,7 +101,12 @@ export default function BookingModal({
 
   const pricePerPerson = attraction.price;
   const { slots: availableTimeSlots, issue: timeSlotIssue } = useMemo(
-    () => generateBookingTimeOptions(attraction.schedule, attraction.duration ?? ""),
+    () => {
+      const options = generateBookingTimeOptions(attraction.schedule, attraction.duration ?? "");
+      if (options.issue !== "duration") return options;
+      const fallback = getHourlyBookingTimes(attraction.schedule);
+      return fallback.length ? { slots: fallback, issue: null } : options;
+    },
     [attraction.schedule, attraction.duration]
   );
 

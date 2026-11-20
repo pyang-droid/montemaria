@@ -2,6 +2,8 @@
 "use client";
 
 import { useState } from "react";
+import { verifyQrPayment } from "./verifyQrPayment";
+import { paymentReferencePattern } from "../../lib/qrPayment";
 import AdminNav from "../AdminNav";
 import { useLiveCollection } from "../../lib/firestore";
 import type { BookingRecord, PaymentRecord } from "../../lib/models";
@@ -133,9 +135,32 @@ export default function BookingsPage() {
   const [activeTab, setActiveTab] = useState<"bookings" | "payments">(
     "bookings"
   );
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(
-    null
-  );
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const selectedBooking = selectedBookingId ? bookingsById.get(selectedBookingId) : undefined;
+  const [reviewed, setReviewed] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState("");
+
+  const selectBooking = (id: string | null) => {
+    if (verifying) return;
+    setSelectedBookingId(id);
+    setReviewed(false);
+    setVerificationError("");
+  };
+
+  const handleVerifyPayment = async () => {
+    if (!selectedBookingId || !reviewed || verifying) return;
+    setVerifying(true);
+    setVerificationError("");
+    try {
+      await verifyQrPayment(selectedBookingId);
+      setReviewed(false);
+    } catch (error) {
+      setVerificationError(error instanceof Error ? error.message : "Unable to verify payment.");
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const filteredBookings = bookingRecords.filter((booking) => {
       const query = search.trim().toLowerCase();
@@ -440,7 +465,7 @@ export default function BookingsPage() {
                         <td className="px-5 py-5">
                           <button
                             type="button"
-                            onClick={() => setSelectedBooking(booking)}
+                            onClick={() => selectBooking(booking.id)}
                             className="inline-flex items-center gap-2 text-sm font-semibold text-[#c1122f] hover:underline"
                           >
                             <Eye size={16} />
@@ -513,7 +538,7 @@ export default function BookingsPage() {
                           {bookingsById.has(payment.bookingId) ? (
                             <button
                               type="button"
-                              onClick={() => setSelectedBooking(bookingsById.get(payment.bookingId) ?? null)}
+                              onClick={() => selectBooking(payment.bookingId)}
                               className="inline-flex items-center gap-2 text-sm font-semibold text-[#c1122f] hover:underline"
                             >
                               <Eye size={16} />
@@ -582,7 +607,7 @@ export default function BookingsPage() {
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
-              setSelectedBooking(null);
+              selectBooking(null);
             }
           }}
         >
@@ -612,7 +637,7 @@ export default function BookingsPage() {
               <button
                 type="button"
                 aria-label="Close details"
-                onClick={() => setSelectedBooking(null)}
+                onClick={() => selectBooking(null)}
                 className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
               >
                 <X size={20} />
@@ -692,11 +717,43 @@ export default function BookingsPage() {
               </div>
             </div>
 
+            {selectedBooking.bookingStatus === "Pending" &&
+              selectedBooking.paymentStatus === "Pending" &&
+              ["gcash", "maya"].includes(selectedBooking.paymentMethod) &&
+              paymentReferencePattern.test(selectedBooking.transactionReference) && (
+                <form
+                  className="space-y-3 border-t border-gray-100 px-6 py-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void handleVerifyPayment();
+                  }}
+                >
+                  <label className="flex items-start gap-2 text-sm text-gray-800">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={reviewed}
+                      disabled={verifying}
+                      onChange={(event) => setReviewed(event.target.checked)}
+                    />
+                    I matched this reference and amount to a completed payment in the receiving wallet.
+                  </label>
+                  {verificationError && <p role="alert" className="text-sm text-red-700">{verificationError}</p>}
+                  <button
+                    type="submit"
+                    disabled={!reviewed || verifying}
+                    className="rounded-xl bg-green-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    {verifying ? "Verifying..." : "Verify payment and issue ticket"}
+                  </button>
+                </form>
+              )}
+
             {/* MODAL FOOTER */}
             <div className="flex justify-end border-t border-gray-100 px-6 py-4">
               <button
                 type="button"
-                onClick={() => setSelectedBooking(null)}
+                onClick={() => selectBooking(null)}
                 className="rounded-xl bg-[#c1122f] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#9e0e26]"
               >
                 Close

@@ -38,6 +38,42 @@ service cloud.firestore {
             && get(assignment).data.attractionId == attractionId));
     }
 
+    function validQrReference(data) {
+      return data.paymentMethod in ['gcash', 'maya']
+        && data.transactionReference is string
+        && data.transactionReference.matches('^[A-Z0-9]{6,40}$');
+    }
+
+    function verifiedQrPayment(paymentId) {
+      let payment = request.resource.data;
+      let bookingPath = /databases/$(database)/documents/bookings/$(payment.bookingId);
+      let before = get(bookingPath).data;
+      let after = getAfter(bookingPath).data;
+      return payment.keys().hasOnly([
+          'bookingId', 'userId', 'amount', 'status', 'paymentMethod',
+          'transactionReference', 'verifiedBy', 'createdAt'
+        ])
+        && validQrReference(payment)
+        && paymentId == payment.paymentMethod + '-' + payment.transactionReference
+        && payment.status == 'paid'
+        && payment.verifiedBy == request.auth.uid
+        && payment.createdAt == request.time
+        && before.status == 'pending'
+        && before.paymentStatus == 'pending'
+        && payment.userId == before.userId
+        && payment.amount == before.amount
+        && payment.paymentMethod == before.paymentMethod
+        && payment.transactionReference == before.transactionReference
+        && after.status == 'confirmed'
+        && after.paymentStatus == 'paid'
+        && after.ticketStatus == 'active'
+        && after.ticketCode is string
+        && after.ticketCode.matches('^[A-F0-9-]{36}$')
+        && after.diff(before).affectedKeys().hasOnly([
+          'status', 'paymentStatus', 'ticketCode', 'ticketStatus', 'updatedAt'
+        ]);
+    }
+
     match /users/{userId} {
       allow read: if activeUser() && (request.auth.uid == userId || isAdmin());
       allow create: if signedIn()
@@ -123,6 +159,9 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.paymentStatus == 'pending'
+        && (!request.resource.data.keys().hasAny(['paymentMethod', 'transactionReference'])
+          || (request.resource.data.numberOfVisitors == 1
+            && validQrReference(request.resource.data)))
         && !request.resource.data.keys().hasAny(['ticketCode', 'ticketStatus'])
         && request.resource.data.numberOfVisitors is int
         && request.resource.data.numberOfVisitors > 0
@@ -155,8 +194,9 @@ service cloud.firestore {
 
     match /payments/{paymentId} {
       allow read: if activeUser()
-        && (resource.data.userId == request.auth.uid || isAdmin());
-      allow write: if false;
+        && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create: if isAdmin() && verifiedQrPayment(paymentId);
+      allow update, delete: if false;
     }
 
     match /visitorLogs/{logId} {

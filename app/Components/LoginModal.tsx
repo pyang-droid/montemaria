@@ -9,7 +9,7 @@ import {
   type LoginAudience,
   type LoginDestination,
 } from "../lib/loginRouting";
-import { getFirebaseErrorCode } from "../lib/firebaseErrors";
+import { getLoginErrorMessage } from "../lib/firebaseErrors";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -70,8 +70,7 @@ export default function LoginModal({
       router.push(destination.path);
       router.refresh();
     } catch (err: unknown) {
-      console.error(getFirebaseErrorCode(err));
-      setError("Invalid email address or password.");
+      setError(getLoginErrorMessage(err));
     } finally {
       setLoading(false);
     }

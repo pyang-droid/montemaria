@@ -30,8 +30,8 @@ Attraction records are managed individually through the tourism administrator's 
 | `users/{uid}` | Auth profile: `email`, `role` (`visitor`, `staff`, `tourism`, or `admin`), `status` (`Active`/`Inactive`), optional name/contact/photo fields. Public sign-up can create only an active `visitor`. |
 | `attractions/{id}` | Attraction catalog: `name`, generated `slug`, `type` (`Paid`/`Free`), `capacity`, `capacityIsPreview`, `currentVisitors`, `schedule`, `status` (`Open`/`Closed`), `isActive`, `isPublished`, `description`, `entranceFee`, and optional presentation fields (`tagline`, `fullDescription`, `duration`, `badge`, `highlights`). `capacity` and `currentVisitors` may remain unset until verified. Initial screenshot capacities are marked as temporary previews; public pages label them as such and do not derive occupancy or remaining availability from them. Public pages query only active, published attractions; closed attractions are not bookable. Booking time options are derived from `schedule` and `duration`; legacy `timeSlots` values are not used. |
 | `attractionAccessRequests/{id}` | Visitor-created request for free access: `userId`, verified auth `userEmail`, `attractionId`, `attractionName`, `requestedVisitors`, `requestType` (`free_access`), `status` (`pending`/`approved`/`denied`), and timestamps. Administrator approval does not issue a QR code or admission ticket. |
-| `bookings/{id}` | Visitor booking: `userId`, attraction ID/name, booking date/time, positive `numberOfVisitors`, `amount`, `status`, and `paymentStatus`. A client can create only a pending booking; trusted payment confirmation and ticket issuance must happen on a configured backend. |
-| `payments/{id}` | Trusted payment records. Client writes are denied. Include `userId`, `bookingId`, `status`, `amount`, payment method/reference, and timestamps when a trusted payment integration is implemented. |
+| `bookings/{id}` | Visitor booking: `userId`, attraction ID/name, booking date/time, positive `numberOfVisitors`, `amount`, `status`, and `paymentStatus`. A client can create only a pending booking; a Tourism administrator can verify a QR payment and issue a ticket. |
+| `payments/{id}` | Verified QR payment records. Only authorized administrators can create them, together with the corresponding booking confirmation. |
 | `visitorLogs/{id}` | Staff-created audit events: booking/ticket, attraction, `eventType` (`ENTRY`, `EXIT`, or `DENIED`), party size, staff identity, and server timestamp. |
 | `staffAssignments/{uid}` | Admin-managed staff assignment: `attractionId`, `attractionName`, and `active`. The document ID is the staff user's Firebase Auth UID. |
 
@@ -47,11 +47,13 @@ Review the rules and schema against the existing project before deployment. From
 firebase deploy --only firestore:rules,firestore:indexes,storage --project monte-maria
 ```
 
-The rules restrict profile access, staff operations to assigned attractions, and payments to trusted backend writes. The included composite indexes support booking activity, ticket verification, and the admission desk. Do not deploy permissive rules to make the UI appear populated.
+The rules restrict profile access, staff operations to assigned attractions, and payment confirmation to authorized administrators. The included composite indexes support booking activity, ticket verification, and the admission desk. Do not deploy permissive rules to make the UI appear populated.
 
 ## Payments and ticket issuance
 
-Paid checkout, payment confirmation, and ticket-code issuance are intentionally unavailable until a payment gateway and a trusted server-side integration are configured. The application does not create fake payment records or ticket codes. Client-created bookings remain pending and cannot be admitted by staff.
+Paid attractions with a configured QR display the selected GCash or Maya QR at checkout. Visitors pay the displayed total in their wallet and submit the transaction reference. In Tourism Dashboard ? Bookings, an administrator checks the reference and amount against the completed payment in the receiving wallet, then verifies the booking. Firestore records the payment, confirms the booking, and issues the ticket code in one transaction. Visitors can see their verification status and ticket code under My Bookings.
+
+Each QR encodes a fixed single-ticket amount. Checkout enables the QR when the booking is for one visitor and the configured entrance fee matches that amount. Visitors can make separate bookings for additional tickets. Verification is manual. Deploy the updated Firestore rules with the app to enable administrative confirmation.
 
 ## Production deployment
 
