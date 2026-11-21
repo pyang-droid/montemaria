@@ -11,6 +11,7 @@ import {
   type LoginDestination,
 } from "../lib/loginRouting";
 import { getLoginErrorMessage } from "../lib/firebaseErrors";
+import PasswordResetButton from "../Components/PasswordResetButton";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -235,14 +236,12 @@ export default function LoginPage() {
                   Remember me
                 </span>
               </label>
-              <button
-                type="button"
+              <PasswordResetButton
+                key={email}
+                email={email}
                 disabled={loading}
                 className="text-sm text-brand-red hover:text-brand-red-dark transition-colors disabled:text-gray-400"
-                style={{ fontFamily: "var(--font-montemaria-sans)" }}
-              >
-                Forgot password?
-              </button>
+              />
             </div>
 
             {/* Action Form Submission Button */}

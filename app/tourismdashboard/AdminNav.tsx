@@ -108,6 +108,8 @@ export default function AdminNav() {
       <header className="fixed left-0 right-0 top-0 z-50 flex h-[72px] items-center justify-between border-b border-gray-200 bg-white px-5 lg:hidden">
         <Link
           href="/tourismdashboard"
+          aria-label="Go to admin dashboard"
+          onClick={() => setMobileOpen(false)}
           className="flex items-center gap-3"
         >
           <img
@@ -169,6 +171,7 @@ export default function AdminNav() {
         <div className="border-b border-gray-100 px-6 py-7">
           <Link
             href="/tourismdashboard"
+            aria-label="Go to admin dashboard"
             onClick={() => setMobileOpen(false)}
             className="flex items-center gap-3"
           >

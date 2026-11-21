@@ -35,7 +35,12 @@ export default function StaffNav() {
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6 lg:px-8">
           {/* BRAND LOGO matching Landing Page */}
           <div className="flex min-w-0 flex-1 items-center gap-3 lg:flex-none">
-            <Link href="/" className="group flex items-center gap-3">
+            <Link
+              href="/staffdashboard"
+              aria-label="Go to staff dashboard"
+              onClick={() => setMobileOpen(false)}
+              className="group flex items-center gap-3"
+            >
               <img
                 src="/montemarialogo.png"
                 alt="Montemaria Batangas Logo"

@@ -114,10 +114,10 @@ export default function DashboardNav() {
           ====================================== */}
 
           <Link
-            href="/"
+            href="/dashboard"
             onClick={handleNavigation}
             className="flex items-center"
-            aria-label="Go to Monte Maria homepage"
+            aria-label="Go to visitor dashboard"
           >
             <img
               src="/montemarialogo.png"

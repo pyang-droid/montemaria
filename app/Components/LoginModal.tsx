@@ -10,6 +10,7 @@ import {
   type LoginDestination,
 } from "../lib/loginRouting";
 import { getLoginErrorMessage } from "../lib/firebaseErrors";
+import PasswordResetButton from "./PasswordResetButton";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -224,13 +225,12 @@ export default function LoginModal({
               </span>
             </label>
 
-            <button
-              type="button"
+            <PasswordResetButton
+              key={email}
+              email={email}
               disabled={loading}
               className="text-sm text-gray-700 transition hover:text-black hover:underline"
-            >
-              Forgot password?
-            </button>
+            />
           </div>
 
           {/* SIGN IN */}
