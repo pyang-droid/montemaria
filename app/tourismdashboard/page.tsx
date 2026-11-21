@@ -153,7 +153,15 @@ export default function TourismDashboardPage() {
     attraction: booking.attractionName || "—",
     schedule: `${booking.bookingDate || "—"} ${booking.bookingTime || ""}`.trim(),
     bookingStatus: booking.status === "confirmed" ? "Confirmed" : booking.status === "cancelled" ? "Cancelled" : booking.status === "pending" ? "Pending" : "Unknown",
-    paymentStatus: booking.paymentStatus === "paid" ? "Paid" : booking.paymentStatus === "refunded" ? "Refunded" : booking.paymentStatus === "pending" ? "Pending" : "Unknown",
+    paymentStatus: booking.paymentStatus === "paid"
+      ? "Paid"
+      : booking.paymentStatus === "free"
+        ? "Free"
+        : booking.paymentStatus === "refunded"
+          ? "Refunded"
+          : booking.paymentStatus === "pending"
+            ? "Pending"
+            : "Unknown",
   }));
   const summaryCards = [
     {

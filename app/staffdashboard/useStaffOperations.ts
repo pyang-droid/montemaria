@@ -61,7 +61,7 @@ export interface TicketData {
   status: "active" | "used" | "expired" | "cancelled";
   issuedDate: string;
   validDate: string;
-  paymentStatus: "Paid" | "Pending";
+  paymentStatus: "Paid" | "Free" | "Pending";
   visitStatus?: "outside" | "inside" | "exited";
 }
 
@@ -340,19 +340,30 @@ export function useStaffOperations(
           status: booking.ticketStatus ?? "cancelled",
           issuedDate: recordTime(booking.createdAt)?.toLocaleDateString() ?? "—",
           validDate: booking.bookingDate ?? "",
-          paymentStatus: booking.paymentStatus === "paid" ? "Paid" : "Pending",
+          paymentStatus:
+            booking.paymentStatus === "paid"
+              ? "Paid"
+              : booking.paymentStatus === "free"
+                ? "Free"
+                : "Pending",
           visitStatus: booking.visitStatus,
         };
 
         if (
           booking.status !== "confirmed" ||
-          booking.paymentStatus !== "paid" ||
+          (booking.paymentStatus !== "paid" && booking.paymentStatus !== "free") ||
           ticket.status !== "active"
         ) {
-          return fail("INVALID_CODE", "This booking is not confirmed and paid.", ticket);
+          return fail("INVALID_CODE", "This booking is not confirmed or has no valid visit ticket.", ticket);
         }
         if (booking.bookingDate && booking.bookingDate < localDate(new Date())) {
           return fail("INVALID_CODE", "This ticket has expired.", ticket);
+        }
+        if (
+          booking.paymentStatus === "free" &&
+          booking.bookingDate !== localDate(new Date())
+        ) {
+          return fail("INVALID_CODE", "This free visit ticket is only valid on its booking date.", ticket);
         }
         if (
           booking.attractionId !== currentAttraction.id ||
@@ -429,7 +440,7 @@ export function useStaffOperations(
             throw new Error("Occupancy data is unavailable for this attraction.");
           }
           if (
-            booking.paymentStatus !== "paid" ||
+            (booking.paymentStatus !== "paid" && booking.paymentStatus !== "free") ||
             booking.status !== "confirmed" ||
             booking.ticketStatus !== "active"
           ) {

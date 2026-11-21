@@ -74,6 +74,49 @@ service cloud.firestore {
         ]);
     }
 
+    function validFreeBooking(booking) {
+      let attraction = get(
+        /databases/$(database)/documents/attractions/$(booking.attractionId)
+      ).data;
+      return booking.keys().hasOnly([
+          'userId', 'visitor', 'email', 'attractionId', 'attractionName',
+          'bookingDate', 'bookingTime', 'numberOfVisitors', 'amount',
+          'status', 'paymentStatus', 'ticketCode', 'ticketStatus',
+          'visitStatus', 'createdAt'
+        ])
+        && booking.keys().hasAll([
+          'userId', 'visitor', 'email', 'attractionId', 'attractionName',
+          'bookingDate', 'bookingTime', 'numberOfVisitors', 'amount',
+          'status', 'paymentStatus', 'ticketCode', 'ticketStatus',
+          'visitStatus', 'createdAt'
+        ])
+        && booking.userId == request.auth.uid
+        && booking.visitor is string
+        && booking.email == request.auth.token.email
+        && booking.attractionName == attraction.name
+        && booking.bookingDate is string
+        && booking.bookingDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && booking.bookingTime is string
+        && booking.bookingTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+        && booking.numberOfVisitors is int
+        && booking.numberOfVisitors > 0
+        && attraction.capacity is int
+        && attraction.capacity > 0
+        && booking.numberOfVisitors <= attraction.capacity
+        && booking.amount == 0
+        && booking.status == 'confirmed'
+        && booking.paymentStatus == 'free'
+        && booking.ticketCode is string
+        && booking.ticketCode.matches('^[A-F0-9-]{36}$')
+        && booking.ticketStatus == 'active'
+        && booking.visitStatus == 'outside'
+        && booking.createdAt == request.time
+        && attraction.type == 'Free'
+        && attraction.status == 'Open'
+        && attraction.isActive == true
+        && attraction.isPublished == true;
+    }
+
     match /users/{userId} {
       allow read: if activeUser() && (request.auth.uid == userId || isAdmin());
       allow create: if signedIn()
@@ -156,28 +199,33 @@ service cloud.firestore {
           || isAdmin()
           || assignedTo(resource.data.attractionId));
       allow create: if activeUser()
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == 'pending'
-        && request.resource.data.paymentStatus == 'pending'
-        && (!request.resource.data.keys().hasAny(['paymentMethod', 'transactionReference'])
-          || (request.resource.data.numberOfVisitors == 1
-            && validQrReference(request.resource.data)))
-        && !request.resource.data.keys().hasAny(['ticketCode', 'ticketStatus'])
-        && request.resource.data.numberOfVisitors is int
-        && request.resource.data.numberOfVisitors > 0
-        && request.resource.data.keys().hasOnly([
-          'userId', 'visitor', 'email', 'attractionId', 'attractionName',
-          'bookingDate', 'bookingTime', 'numberOfVisitors', 'amount',
-          'status', 'paymentStatus', 'paymentMethod',
-          'transactionReference', 'createdAt'
-        ])
-        && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.type == 'Paid'
-        && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.status == 'Open'
-        && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.isActive == true
-        && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.isPublished == true
-        && request.resource.data.amount
-          == get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.entranceFee
-            * request.resource.data.numberOfVisitors;
+        && (
+          (
+            request.resource.data.userId == request.auth.uid
+            && request.resource.data.status == 'pending'
+            && request.resource.data.paymentStatus == 'pending'
+            && (!request.resource.data.keys().hasAny(['paymentMethod', 'transactionReference'])
+              || (request.resource.data.numberOfVisitors == 1
+                && validQrReference(request.resource.data)))
+            && !request.resource.data.keys().hasAny(['ticketCode', 'ticketStatus'])
+            && request.resource.data.numberOfVisitors is int
+            && request.resource.data.numberOfVisitors > 0
+            && request.resource.data.keys().hasOnly([
+              'userId', 'visitor', 'email', 'attractionId', 'attractionName',
+              'bookingDate', 'bookingTime', 'numberOfVisitors', 'amount',
+              'status', 'paymentStatus', 'paymentMethod',
+              'transactionReference', 'createdAt'
+            ])
+            && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.type == 'Paid'
+            && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.status == 'Open'
+            && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.isActive == true
+            && get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.isPublished == true
+            && request.resource.data.amount
+              == get(/databases/$(database)/documents/attractions/$(request.resource.data.attractionId)).data.entranceFee
+                * request.resource.data.numberOfVisitors
+          )
+          || validFreeBooking(request.resource.data)
+        );
       allow update: if isAdmin()
         || (activeUser()
           && request.auth.uid == resource.data.userId

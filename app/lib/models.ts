@@ -37,7 +37,7 @@ export interface BookingRecord extends DocumentData {
   numberOfVisitors: number;
   amount: number;
   status: "pending" | "confirmed" | "cancelled";
-  paymentStatus: "pending" | "paid" | "refunded";
+  paymentStatus: "pending" | "paid" | "free" | "refunded";
   paymentMethod?: string;
   transactionReference?: string;
   ticketCode?: string;

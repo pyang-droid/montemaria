@@ -418,7 +418,11 @@ function QRCodeContent() {
                       </div>
                       <div>
                         <span className="block text-[10px] font-bold uppercase text-[#86868b]">Payment</span>
-                        <span className="text-emerald-700 font-semibold block mt-0.5">✓ Verified Paid</span>
+                        <span className="text-emerald-700 font-semibold block mt-0.5">
+                          {lastVerification.ticket.paymentStatus === "Free"
+                            ? "✓ Free Visit"
+                            : "✓ Verified Paid"}
+                        </span>
                       </div>
                     </div>
                   )}

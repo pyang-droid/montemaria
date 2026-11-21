@@ -10,7 +10,7 @@ import type { BookingRecord, PaymentRecord } from "../../lib/models";
 import { Search, X, Eye, CalendarDays, CreditCard } from "lucide-react";
 
 type BookingStatus = "Confirmed" | "Pending" | "Cancelled" | "Unknown";
-type PaymentStatus = "Paid" | "Pending" | "Refunded" | "Unknown";
+type PaymentStatus = "Paid" | "Free" | "Pending" | "Refunded" | "Unknown";
 
 interface Booking {
   id: string;
@@ -100,6 +100,8 @@ export default function BookingsPage() {
           : "Unknown"),
     paymentStatus: record.paymentStatus === "paid"
       ? "Paid"
+      : record.paymentStatus === "free"
+        ? "Free"
       : record.paymentStatus === "refunded"
         ? "Refunded"
         : record.paymentStatus === "pending"
@@ -380,6 +382,7 @@ export default function BookingsPage() {
               >
                 <option value="All">All Payment Status</option>
                 <option value="Paid">Paid</option>
+                <option value="Free">Free visit</option>
                 <option value="Pending">Pending</option>
                 <option value="Refunded">Refunded</option>
               </select>

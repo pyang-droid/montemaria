@@ -66,14 +66,14 @@ function EntryValidationContent() {
       ? query(
           bookingsRef,
           where("status", "==", "confirmed"),
-          where("paymentStatus", "==", "paid"),
+          where("paymentStatus", "in", ["paid", "free"]),
           where("ticketStatus", "==", "active")
         )
       : query(
           bookingsRef,
           where("attractionId", "==", currentAttractionId),
           where("status", "==", "confirmed"),
-          where("paymentStatus", "==", "paid"),
+          where("paymentStatus", "in", ["paid", "free"]),
           where("ticketStatus", "==", "active")
         );
 

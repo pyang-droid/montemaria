@@ -1,14 +1,13 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import Link from "next/link";
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
   setDoc,
-  onSnapshot,
   serverTimestamp,
 } from "firebase/firestore";
 
@@ -26,7 +25,6 @@ import BookingModal, {
 } from "./components/BookingModal";
 
 import PaymentModal from "./components/PaymentModal";
-import MyBookings from "./components/MyBookings";
 import { getPaymentQrCodes, type PaymentMethod } from "../lib/qrPayment";
 
 import { auth, db } from "../lib/firebase";
@@ -98,40 +96,8 @@ export default function DashboardPage() {
 
   const [paymentError, setPaymentError] =
     useState<string | null>(null);
-
-  const [generatedCode, setGeneratedCode] =
+  const [bookingSuccessMessage, setBookingSuccessMessage] =
     useState<string | null>(null);
-  const [requestingAccess, setRequestingAccess] = useState(false);
-  const [accessRequestMessage, setAccessRequestMessage] =
-    useState<string | null>(null);
-  const [accessRequestId, setAccessRequestId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!accessRequestId) return;
-
-    return onSnapshot(
-      doc(db, "attractionAccessRequests", accessRequestId),
-      (snapshot) => {
-        if (!snapshot.exists()) {
-          setAccessRequestMessage("This access request is no longer available.");
-          return;
-        }
-
-        const status = snapshot.data().status;
-        const statusMessage =
-          status === "approved"
-            ? "was approved. Secure access-code issuance is not configured, so no ticket was issued."
-            : status === "denied"
-              ? "was denied by an administrator."
-              : "is awaiting administrator review.";
-        setAccessRequestMessage(`Request ${accessRequestId} ${statusMessage}`);
-      },
-      (requestError) => {
-        console.error("Unable to listen for access request updates:", requestError);
-        setPaymentError("Unable to retrieve the latest access request status.");
-      }
-    );
-  }, [accessRequestId]);
 
   // ==========================================
   // FILTER ATTRACTIONS
@@ -161,9 +127,7 @@ export default function DashboardPage() {
 
     setCurrentBooking(null);
     setPaymentError(null);
-    setGeneratedCode(null);
-    setAccessRequestMessage(null);
-    setAccessRequestId(null);
+    setBookingSuccessMessage(null);
   };
 
   // ==========================================
@@ -178,9 +142,6 @@ export default function DashboardPage() {
 
     setCurrentBooking(null);
     setPaymentError(null);
-    setGeneratedCode(null);
-    setAccessRequestMessage(null);
-    setAccessRequestId(null);
   };
 
   // ==========================================
@@ -192,7 +153,11 @@ export default function DashboardPage() {
       return;
     }
 
-    if (selectedAttraction.type !== "paid" || selectedAttraction.status !== "Open") {
+    if (
+      selectedAttraction.status !== "Open" ||
+      (selectedAttraction.type === "paid" && selectedAttraction.price === null) ||
+      (selectedAttraction.type === "free" && selectedAttraction.maxCapacity === null)
+    ) {
       return;
     }
 
@@ -287,61 +252,51 @@ export default function DashboardPage() {
     });
   };
 
-  // ==========================================
-  // FREE ATTRACTION ACCESS
-  // ==========================================
-
-  const handleGenerateCode = async (visitorCount: number) => {
+  const handleCreateFreeBooking = async (booking: BookingDetails) => {
     const user = auth.currentUser;
     if (!user) {
-      setPaymentError("Sign in before requesting free attraction access.");
-      return;
-    }
-    if (
-      !selectedAttraction ||
-      selectedAttraction.type !== "free" ||
-      selectedAttraction.status !== "Open" ||
-      !Number.isInteger(visitorCount) ||
-      visitorCount < 1 ||
-      selectedAttraction.maxCapacity === null ||
-      visitorCount > selectedAttraction.maxCapacity
-    ) {
-      setPaymentError(
-        selectedAttraction?.maxCapacity === null
-          ? "Access requests are unavailable until an administrator sets a verified capacity."
-          : "This attraction cannot accept that access request."
-      );
-      return;
+      throw new Error("Sign in before booking a visit.");
     }
 
-    setRequestingAccess(true);
-    setPaymentError(null);
-    setAccessRequestMessage(null);
-    setGeneratedCode(null);
-    try {
-      const requestRef = await addDoc(
-        collection(db, "attractionAccessRequests"),
-        {
-          userId: user.uid,
-          userEmail: user.email ?? "",
-          attractionId: selectedAttraction.id,
-          attractionName: selectedAttraction.name,
-          requestType: "free_access",
-          requestedVisitors: visitorCount,
-          status: "pending",
-          createdAt: serverTimestamp(),
-        }
-      );
-      setAccessRequestId(requestRef.id);
-      setAccessRequestMessage(
-        `Request ${requestRef.id} was submitted for administrator review. This is not an access code or ticket.`
-      );
-    } catch (requestError) {
-      console.error("Unable to submit free attraction access request:", requestError);
-      setPaymentError("Unable to submit the access request. Check your sign-in and try again.");
-    } finally {
-      setRequestingAccess(false);
+    const attraction = attractions.find(({ id }) => id === booking.attractionId);
+    if (
+      !attraction ||
+      attraction.id !== selectedAttraction?.id ||
+      attraction.type !== "free" ||
+      attraction.status !== "Open" ||
+      attraction.maxCapacity === null ||
+      booking.totalAmount !== 0 ||
+      !Number.isInteger(booking.numberOfVisitors) ||
+      booking.numberOfVisitors < 1 ||
+      booking.numberOfVisitors > attraction.maxCapacity
+    ) {
+      throw new Error("This attraction cannot accept that booking.");
     }
+
+    const bookingRef = doc(collection(db, "bookings"));
+    await setDoc(bookingRef, {
+      userId: user.uid,
+      visitor: user.displayName || user.email || "Visitor",
+      email: user.email ?? "",
+      attractionId: attraction.id,
+      attractionName: attraction.name,
+      bookingDate: booking.bookingDate,
+      bookingTime: booking.bookingTime,
+      numberOfVisitors: booking.numberOfVisitors,
+      amount: 0,
+      status: "confirmed",
+      paymentStatus: "free",
+      ticketCode: crypto.randomUUID().toUpperCase(),
+      ticketStatus: "active",
+      visitStatus: "outside",
+      createdAt: serverTimestamp(),
+    });
+
+    setShowBookingModal(false);
+    setSelectedAttractionId(null);
+    setBookingSuccessMessage(
+      "Your free visit is booked. Show the QR ticket in My Bookings when you arrive."
+    );
   };
 
   // ==========================================
@@ -407,6 +362,18 @@ export default function DashboardPage() {
               unforgettable experiences
             </p>
           </div>
+
+          {bookingSuccessMessage && (
+            <p
+              role="status"
+              className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800"
+            >
+              {bookingSuccessMessage}{" "}
+              <Link href="/dashboard/bookings" className="font-semibold underline">
+                View QR ticket
+              </Link>
+            </p>
+          )}
 
           {/* ==================================
               FILTER BUTTONS
@@ -500,8 +467,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <MyBookings />
-
           {/* ==================================
               FOOTER NOTE
           ================================== */}
@@ -529,15 +494,6 @@ export default function DashboardPage() {
             attraction={selectedAttraction}
             onClose={handleCloseDetails}
             onBookNow={handleBookNow}
-            onGenerateCode={
-              selectedAttraction.type === "free" &&
-              selectedAttraction.status === "Open"
-                ? handleGenerateCode
-                : undefined
-            }
-            generatedCode={generatedCode}
-            accessRequestMessage={accessRequestMessage}
-            requestingAccess={requestingAccess}
           />
         )}
 
@@ -554,6 +510,7 @@ export default function DashboardPage() {
             onProceedToPayment={
               handleProceedToPayment
             }
+            onCreateFreeBooking={handleCreateFreeBooking}
             getDailyBookingActivity={
               handleGetDailyBookingActivity
             }

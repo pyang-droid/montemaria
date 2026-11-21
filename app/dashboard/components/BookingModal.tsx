@@ -29,6 +29,7 @@ interface BookingModalProps {
   attraction: Attraction;
   onClose: () => void;
   onProceedToPayment: (booking: BookingDetails) => void;
+  onCreateFreeBooking: (booking: BookingDetails) => Promise<void>;
   getDailyBookingActivity?: (
     date: string
   ) => Promise<DailyBookingActivity>;
@@ -78,6 +79,7 @@ export default function BookingModal({
   attraction,
   onClose,
   onProceedToPayment,
+  onCreateFreeBooking,
   getDailyBookingActivity,
 }: BookingModalProps) {
   const [bookingDate, setBookingDate] = useState("");
@@ -96,10 +98,13 @@ export default function BookingModal({
 
   const [activityRequest, setActivityRequest] =
     useState(0);
+  const [submissionError, setSubmissionError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const today = getLocalDateString(new Date());
 
-  const pricePerPerson = attraction.price;
+  const isFree = attraction.type === "free";
+  const pricePerPerson = isFree ? 0 : attraction.price;
   const { slots: availableTimeSlots, issue: timeSlotIssue } = useMemo(
     () => {
       const options = generateBookingTimeOptions(attraction.schedule, attraction.duration ?? "");
@@ -205,8 +210,9 @@ export default function BookingModal({
   // HANDLE SUBMIT
   // ============================================
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setSubmissionError("");
 
     if (!bookingDate) {
       alert("Please select a booking date.");
@@ -230,13 +236,20 @@ export default function BookingModal({
 
     if (
       !Number.isInteger(numberOfVisitors) ||
-      numberOfVisitors < 1
+      numberOfVisitors < 1 ||
+      (isFree &&
+        (attraction.maxCapacity === null ||
+          numberOfVisitors > attraction.maxCapacity))
     ) {
-      alert("Please enter a valid number of visitors.");
+      setSubmissionError(
+        attraction.maxCapacity === null && isFree
+          ? "Booking is unavailable until an administrator sets the attraction capacity."
+          : "Please enter a valid number of visitors within the attraction capacity."
+      );
       return;
     }
 
-    onProceedToPayment({
+    const booking: BookingDetails = {
       attractionId: attraction.id,
       attractionName: attraction.name,
       bookingDate,
@@ -245,7 +258,25 @@ export default function BookingModal({
       numberOfVisitors,
       pricePerPerson,
       totalAmount,
-    });
+    };
+
+    if (!isFree) {
+      onProceedToPayment(booking);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await onCreateFreeBooking(booking);
+    } catch (error) {
+      setSubmissionError(
+        error instanceof Error
+          ? error.message
+          : "Unable to book this visit. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // ============================================
@@ -307,6 +338,14 @@ export default function BookingModal({
             onSubmit={handleSubmit}
             className="space-y-6"
           >
+            {submissionError && (
+              <p
+                role="alert"
+                className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+              >
+                {submissionError}
+              </p>
+            )}
 
             {/* ====================================
                 BOOKING DATE
@@ -328,6 +367,7 @@ export default function BookingModal({
                   handleDateChange(e.target.value)
                 }
                 required
+                disabled={submitting}
                 className="w-full px-4 py-3 border border-gray-300 text-gray-700 rounded-xl focus:ring-2 focus:ring-gray-400 focus:border-gray-400 outline-none"
               />
             </div>
@@ -430,6 +470,7 @@ export default function BookingModal({
                             key={slot.time}
                             type="button"
                             onClick={() => setBookingTime(slot.time)}
+                            disabled={submitting}
                             className={`rounded-xl border px-4 py-3 text-sm font-medium transition-all ${
                               selected
                                 ? "bg-gray-800 border-gray-800 text-white"
@@ -476,6 +517,8 @@ export default function BookingModal({
                   min={1}
                   step={1}
                   value={numberOfVisitors}
+                  max={isFree ? attraction.maxCapacity ?? undefined : undefined}
+                  disabled={submitting}
                   onChange={(e) =>
                     setNumberOfVisitors(
                       Number(e.target.value)
@@ -534,7 +577,11 @@ export default function BookingModal({
                   </span>
 
                   <span className="font-medium text-gray-900">
-                    {pricePerPerson === null ? "Unavailable" : `₱${pricePerPerson.toLocaleString("en-PH")}`}
+                    {isFree
+                      ? "Free"
+                      : pricePerPerson === null
+                        ? "Unavailable"
+                        : `₱${pricePerPerson.toLocaleString("en-PH")}`}
                   </span>
                 </div>
 
@@ -554,7 +601,11 @@ export default function BookingModal({
                   </span>
 
                   <span className="text-xl font-bold text-gray-900">
-                    {totalAmount === null ? "—" : `₱${totalAmount.toLocaleString("en-PH")}`}
+                    {isFree
+                      ? "Free"
+                      : totalAmount === null
+                        ? "—"
+                        : `₱${totalAmount.toLocaleString("en-PH")}`}
                   </span>
                 </div>
               </div>
@@ -573,12 +624,20 @@ export default function BookingModal({
                   numberOfVisitors
                 ) ||
                 numberOfVisitors < 1 ||
+                (isFree &&
+                  (attraction.maxCapacity === null ||
+                    numberOfVisitors > attraction.maxCapacity)) ||
                 loadingActivity ||
-                !!visibleActivityError
+                !!visibleActivityError ||
+                submitting
               }
               className="w-full py-4 bg-gray-800 text-white rounded-xl font-semibold hover:bg-gray-900 transition-all disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
             >
-              Proceed to Payment
+              {submitting
+                ? "Booking Visit…"
+                : isFree
+                  ? "Book Visit"
+                  : "Proceed to Payment"}
             </button>
 
             <p className="text-center text-xs text-gray-400">

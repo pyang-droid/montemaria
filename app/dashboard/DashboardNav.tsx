@@ -24,6 +24,10 @@ export default function DashboardNav() {
       label: "Attractions",
       href: "/dashboard",
     },
+    {
+      label: "My Bookings",
+      href: "/dashboard/bookings",
+    },
   ];
 
   // ============================================
