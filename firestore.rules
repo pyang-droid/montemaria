@@ -38,6 +38,231 @@ service cloud.firestore {
             && get(assignment).data.attractionId == attractionId));
     }
 
+    function validOccupancyTransition(
+      eventType,
+      previousVisitStatus,
+      nextVisitStatus,
+      previousCount,
+      nextCount,
+      pax
+    ) {
+      return (eventType == 'ENTRY'
+          && previousVisitStatus == 'outside'
+          && nextVisitStatus == 'inside'
+          && nextCount == previousCount + pax)
+        || (eventType == 'EXIT'
+          && previousVisitStatus == 'inside'
+          && nextVisitStatus == 'exited'
+          && nextCount == previousCount - pax);
+    }
+
+    function validStaffAttractionOccupancyUpdate(attractionId) {
+      let eventId = request.resource.data.get('lastOccupancyLogId', '');
+      let bookingId = request.resource.data.get('lastOccupancyBookingId', '');
+      let eventPath = /databases/$(database)/documents/visitorLogs/$(eventId);
+      let bookingPath = /databases/$(database)/documents/bookings/$(bookingId);
+      return assignedTo(attractionId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'currentVisitors', 'updatedAt', 'lastOccupancyLogId',
+          'lastOccupancyBookingId'
+        ])
+        && request.resource.data.diff(resource.data).affectedKeys().hasAll([
+          'currentVisitors', 'updatedAt', 'lastOccupancyLogId',
+          'lastOccupancyBookingId'
+        ])
+        && eventId is string
+        && eventId != resource.data.get('lastOccupancyLogId', '')
+        && bookingId is string
+        && exists(bookingPath)
+        && existsAfter(eventPath)
+        && existsAfter(bookingPath)
+        && validStaffAttractionOccupancyEvent(
+          attractionId, bookingId, eventId, eventPath, bookingPath
+        );
+    }
+
+    function validStaffAttractionOccupancyEvent(
+      attractionId,
+      bookingId,
+      eventId,
+      eventPath,
+      bookingPath
+    ) {
+      let event = getAfter(eventPath).data;
+      let bookingBefore = get(bookingPath).data;
+      let bookingAfter = getAfter(bookingPath).data;
+      return event.bookingId == bookingId
+        && event.attractionId == attractionId
+        && event.eventType in ['ENTRY', 'EXIT']
+        && event.pax is int
+        && event.pax > 0
+        && event.createdAt == request.time
+        && bookingBefore.attractionId == attractionId
+        && bookingBefore.status == 'confirmed'
+        && bookingBefore.paymentStatus in ['paid', 'free']
+        && bookingBefore.ticketStatus == 'active'
+        && bookingBefore.numberOfVisitors == event.pax
+        && bookingAfter.attractionId == attractionId
+        && bookingAfter.diff(bookingBefore).affectedKeys().hasOnly([
+          'visitStatus', 'updatedAt', 'lastOccupancyEventId'
+        ])
+        && bookingAfter.diff(bookingBefore).affectedKeys().hasAll([
+          'visitStatus', 'updatedAt', 'lastOccupancyEventId'
+        ])
+        && bookingAfter.lastOccupancyEventId == eventId
+        && bookingAfter.updatedAt == request.time
+        && resource.data.currentVisitors is int
+        && resource.data.capacity is int
+        && request.resource.data.currentVisitors is int
+        && request.resource.data.currentVisitors >= 0
+        && request.resource.data.currentVisitors <= resource.data.capacity
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.lastOccupancyLogId == eventId
+        && request.resource.data.lastOccupancyBookingId == bookingId
+        && (event.eventType != 'ENTRY'
+          || (resource.data.queuePaused != true
+            && resource.data.status != 'Closed'))
+        && validOccupancyTransition(
+          event.eventType,
+          bookingBefore.get('visitStatus', 'outside'),
+          bookingAfter.visitStatus,
+          resource.data.currentVisitors,
+          request.resource.data.currentVisitors,
+          event.pax
+        );
+    }
+
+    function validStaffBookingOccupancyUpdate(bookingId) {
+      let attractionId = resource.data.attractionId;
+      let eventId = request.resource.data.get('lastOccupancyEventId', '');
+      let eventPath = /databases/$(database)/documents/visitorLogs/$(eventId);
+      let attractionPath = /databases/$(database)/documents/attractions/$(attractionId);
+      return assignedTo(attractionId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'visitStatus', 'updatedAt', 'lastOccupancyEventId'
+        ])
+        && request.resource.data.diff(resource.data).affectedKeys().hasAll([
+          'visitStatus', 'updatedAt', 'lastOccupancyEventId'
+        ])
+        && eventId is string
+        && eventId != resource.data.get('lastOccupancyEventId', '')
+        && existsAfter(eventPath)
+        && exists(attractionPath)
+        && existsAfter(attractionPath)
+        && validStaffBookingOccupancyEvent(
+          bookingId, attractionId, eventId, eventPath, attractionPath
+        );
+    }
+
+    function validStaffBookingOccupancyEvent(
+      bookingId,
+      attractionId,
+      eventId,
+      eventPath,
+      attractionPath
+    ) {
+      let event = getAfter(eventPath).data;
+      let attractionBefore = get(attractionPath).data;
+      let attractionAfter = getAfter(attractionPath).data;
+      return event.bookingId == bookingId
+        && event.attractionId == attractionId
+        && event.eventType in ['ENTRY', 'EXIT']
+        && event.pax is int
+        && event.pax == resource.data.numberOfVisitors
+        && event.createdAt == request.time
+        && resource.data.status == 'confirmed'
+        && resource.data.paymentStatus in ['paid', 'free']
+        && resource.data.ticketStatus == 'active'
+        && request.resource.data.lastOccupancyEventId == eventId
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.visitStatus
+          == (event.eventType == 'ENTRY' ? 'inside' : 'exited')
+        && attractionAfter.diff(attractionBefore).affectedKeys().hasOnly([
+          'currentVisitors', 'updatedAt', 'lastOccupancyLogId',
+          'lastOccupancyBookingId'
+        ])
+        && attractionAfter.diff(attractionBefore).affectedKeys().hasAll([
+          'currentVisitors', 'updatedAt', 'lastOccupancyLogId',
+          'lastOccupancyBookingId'
+        ])
+        && attractionAfter.lastOccupancyLogId == eventId
+        && attractionAfter.lastOccupancyBookingId == bookingId
+        && attractionAfter.updatedAt == request.time
+        && (event.eventType != 'ENTRY'
+          || (attractionBefore.queuePaused != true
+            && attractionBefore.status != 'Closed'))
+        && validOccupancyTransition(
+          event.eventType,
+          resource.data.get('visitStatus', 'outside'),
+          request.resource.data.visitStatus,
+          attractionBefore.currentVisitors,
+          attractionAfter.currentVisitors,
+          event.pax
+        );
+    }
+
+    function validStaffVisitorLog(logId) {
+      let bookingId = request.resource.data.get('bookingId', '');
+      let attractionId = request.resource.data.attractionId;
+      let bookingPath = /databases/$(database)/documents/bookings/$(bookingId);
+      let attractionPath = /databases/$(database)/documents/attractions/$(attractionId);
+      return bookingId is string
+        && request.resource.data.eventType in ['ENTRY', 'EXIT']
+        && exists(bookingPath)
+        && existsAfter(bookingPath)
+        && exists(attractionPath)
+        && existsAfter(attractionPath)
+        && validStaffVisitorLogEvent(
+          logId, bookingId, attractionId, bookingPath, attractionPath
+        );
+    }
+
+    function validStaffVisitorLogEvent(
+      logId,
+      bookingId,
+      attractionId,
+      bookingPath,
+      attractionPath
+    ) {
+      let bookingBefore = get(bookingPath).data;
+      let bookingAfter = getAfter(bookingPath).data;
+      let attractionBefore = get(attractionPath).data;
+      let attractionAfter = getAfter(attractionPath).data;
+      return request.resource.data.bookingId == bookingId
+        && request.resource.data.attractionId == attractionId
+        && request.resource.data.pax is int
+        && request.resource.data.pax > 0
+        && request.resource.data.createdAt == request.time
+        && bookingBefore.attractionId == attractionId
+        && bookingBefore.status == 'confirmed'
+        && bookingBefore.paymentStatus in ['paid', 'free']
+        && bookingBefore.ticketStatus == 'active'
+        && bookingBefore.numberOfVisitors == request.resource.data.pax
+        && bookingAfter.diff(bookingBefore).affectedKeys().hasOnly([
+          'visitStatus', 'updatedAt', 'lastOccupancyEventId'
+        ])
+        && bookingAfter.lastOccupancyEventId == logId
+        && bookingAfter.updatedAt == request.time
+        && attractionAfter.diff(attractionBefore).affectedKeys().hasOnly([
+          'currentVisitors', 'updatedAt', 'lastOccupancyLogId',
+          'lastOccupancyBookingId'
+        ])
+        && attractionAfter.lastOccupancyLogId == logId
+        && attractionAfter.lastOccupancyBookingId == bookingId
+        && attractionAfter.updatedAt == request.time
+        && (request.resource.data.eventType != 'ENTRY'
+          || (attractionBefore.queuePaused != true
+            && attractionBefore.status != 'Closed'))
+        && validOccupancyTransition(
+          request.resource.data.eventType,
+          bookingBefore.get('visitStatus', 'outside'),
+          bookingAfter.visitStatus,
+          attractionBefore.currentVisitors,
+          attractionAfter.currentVisitors,
+          request.resource.data.pax
+        );
+    }
+
     function validQrReference(data) {
       return data.paymentMethod in ['gcash', 'maya']
         && data.transactionReference is string
@@ -119,16 +344,34 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if activeUser() && (request.auth.uid == userId || isAdmin());
-      allow create: if signedIn()
-        && request.auth.uid == userId
-        && request.resource.data.keys().hasOnly([
-          'email', 'createdAt', 'role', 'status', 'firstName', 'lastName',
-          'username', 'mobileNumber', 'photoURL'
-        ])
-        && request.resource.data.keys().hasAll(['email', 'createdAt', 'role'])
-        && request.resource.data.email == request.auth.token.email
-        && request.resource.data.role == 'visitor'
-        && request.resource.data.get('status', 'Active') == 'Active';
+      allow create: if (
+          signedIn()
+          && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly([
+            'email', 'createdAt', 'role', 'status', 'firstName', 'lastName',
+            'username', 'mobileNumber', 'photoURL'
+          ])
+          && request.resource.data.keys().hasAll(['email', 'createdAt', 'role'])
+          && request.resource.data.email == request.auth.token.email
+          && request.resource.data.role == 'visitor'
+          && request.resource.data.get('status', 'Active') == 'Active'
+        ) || (
+          isAdmin()
+          && request.resource.data.keys().hasOnly([
+            'email', 'createdAt', 'role', 'status', 'firstName', 'lastName'
+          ])
+          && request.resource.data.keys().hasAll([
+            'email', 'createdAt', 'role', 'status', 'firstName', 'lastName'
+          ])
+          && request.resource.data.email is string
+          && request.resource.data.createdAt is string
+          && request.resource.data.role == 'staff'
+          && request.resource.data.status == 'Active'
+          && request.resource.data.firstName is string
+          && request.resource.data.firstName.size() > 0
+          && request.resource.data.lastName is string
+          && request.resource.data.lastName.size() > 0
+        );
       allow update: if isAdmin()
         || (activeUser()
           && request.auth.uid == userId
@@ -143,19 +386,13 @@ service cloud.firestore {
 
     match /attractions/{attractionId} {
       allow read: if isAdmin()
-        || isStaff()
-        || (resource.data.isActive == true
+        || (isStaff() && assignedTo(attractionId))
+        || (!isStaff()
+          && resource.data.isActive == true
           && resource.data.isPublished == true);
       allow create, delete: if isAdmin();
       allow update: if isAdmin()
-        || (assignedTo(attractionId)
-          && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['currentVisitors', 'queuePaused', 'updatedAt'])
-          && request.resource.data.currentVisitors is int
-          && request.resource.data.currentVisitors >= 0
-          && request.resource.data.currentVisitors <= resource.data.capacity
-          && (!request.resource.data.keys().hasAny(['queuePaused'])
-            || request.resource.data.queuePaused is bool));
+        || validStaffAttractionOccupancyUpdate(attractionId);
     }
 
     match /attractionAccessRequests/{requestId} {
@@ -233,10 +470,7 @@ service cloud.firestore {
           && resource.data.paymentStatus == 'pending'
           && request.resource.data.status == 'cancelled'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']))
-        || (assignedTo(resource.data.attractionId)
-          && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['visitStatus', 'updatedAt'])
-          && request.resource.data.visitStatus in ['inside', 'exited']);
+        || validStaffBookingOccupancyUpdate(bookingId);
       allow delete: if isAdmin();
     }
 
@@ -258,7 +492,10 @@ service cloud.firestore {
         ])
         && request.resource.data.eventType in ['ENTRY', 'EXIT', 'DENIED']
         && request.resource.data.pax is int
-        && request.resource.data.pax > 0;
+        && request.resource.data.pax > 0
+        && (isAdmin()
+          || request.resource.data.eventType == 'DENIED'
+          || validStaffVisitorLog(logId));
       allow update, delete: if isAdmin();
     }
 

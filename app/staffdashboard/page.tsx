@@ -18,10 +18,6 @@ import {
   Clock,
   ArrowRightLeft,
   ShieldCheck,
-  PauseCircle,
-  PlayCircle,
-  Plus,
-  Minus,
   ExternalLink,
   Info,
   KeyRound,
@@ -31,7 +27,14 @@ import {
 } from "lucide-react";
 
 function StaffDashboardContent() {
-  const { accountData, role, isAdmin, assignedAttraction, setAssignedAttraction } = useStaffAuth();
+  const {
+    accountData,
+    role,
+    isAdmin,
+    assignedAttraction,
+    assignedAttractionId,
+    setAssignedAttraction,
+  } = useStaffAuth();
   const staffName = accountData?.fullName || accountData?.email || "—";
 
   const {
@@ -54,7 +57,7 @@ function StaffDashboardContent() {
     manualAdjustCount,
     totalEntriesToday,
     totalExitsToday,
-  } = useStaffOperations(assignedAttraction, staffName);
+  } = useStaffOperations(assignedAttraction, staffName, isAdmin, assignedAttractionId);
 
   const [inputCode, setInputCode] = useState("");
   const [stationModalOpen, setStationModalOpen] = useState(false);
@@ -150,16 +153,22 @@ function StaffDashboardContent() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setStationModalOpen(true)}
-                className="rounded-full border border-black/10 bg-white hover:bg-[#f5f5f7] px-5 py-2.5 text-xs font-semibold text-[#1d1d1f] shadow-xs transition-all duration-200 flex items-center gap-2 cursor-pointer"
-              >
-                <ArrowRightLeft className="h-3.5 w-3.5 text-[#c1122f]" />
-                Switch Assigned Station
-              </button>
-            </div>
+            {isAdmin ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStationModalOpen(true)}
+                  className="rounded-full border border-black/10 bg-white hover:bg-[#f5f5f7] px-5 py-2.5 text-xs font-semibold text-[#1d1d1f] shadow-xs transition-all duration-200 flex items-center gap-2 cursor-pointer"
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5 text-[#c1122f]" />
+                  Switch Assigned Station
+                </button>
+              </div>
+            ) : (
+              <div className="rounded-full border border-black/10 bg-white px-5 py-2.5 text-xs font-semibold text-[#1d1d1f] shadow-xs">
+                Assigned Station: {assignedAttraction || "Not assigned"}
+              </div>
+            )}
           </div>
 
           {/* DFD SECTION 1: Staff Account Data (D1) + Assigned Attraction Information (3.0) */}
@@ -606,63 +615,58 @@ function StaffDashboardContent() {
                   </div>
                 </div>
 
-                {/* Controls: Pause Queue & Headcount */}
-                <div className="space-y-3 pt-3 border-t border-black/[0.05]">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-semibold text-[#1d1d1f] block">Admissions Gate</span>
-                      <span className="text-[11px] text-[#86868b]">Hold queue when full</span>
+                {isAdmin ? (
+                  <div className="space-y-3 pt-3 border-t border-black/[0.05]">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-semibold text-[#1d1d1f] block">Admissions Gate</span>
+                        <span className="text-[11px] text-[#86868b]">Hold queue when full</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsQueuePaused(!isQueuePaused)}
+                        className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+                          isQueuePaused
+                            ? "bg-[#c1122f] text-white shadow-xs"
+                            : "border border-black/10 bg-[#f5f5f7] text-[#424245] hover:bg-white"
+                        }`}
+                      >
+                        {isQueuePaused ? "Resume" : "Pause Queue"}
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsQueuePaused(!isQueuePaused)}
-                      className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
-                        isQueuePaused
-                          ? "bg-[#c1122f] text-white shadow-xs"
-                          : "border border-black/10 bg-[#f5f5f7] text-[#424245] hover:bg-white"
-                      }`}
-                    >
-                      {isQueuePaused ? (
-                        <>
-                          <PlayCircle className="h-3.5 w-3.5" />
-                          Resume
-                        </>
-                      ) : (
-                        <>
-                          <PauseCircle className="h-3.5 w-3.5" />
-                          Pause Queue
-                        </>
-                      )}
-                    </button>
-                  </div>
 
-                  <div className="flex items-center justify-between pt-2">
-                    <div>
-                      <span className="text-xs font-semibold text-[#1d1d1f] block">Manual Headcount</span>
-                      <span className="text-[11px] text-[#86868b]">Unticketed infants / staff escorts</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => manualAdjustCount(-1)}
-                        disabled={currentAttraction.currentVisitors === null || currentAttraction.currentVisitors <= 0}
-                        className="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-[#f5f5f7] hover:bg-white text-[#1d1d1f] font-bold disabled:opacity-40 transition cursor-pointer"
-                        title="Subtract 1"
-                      >
-                        <Minus className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => manualAdjustCount(1)}
-                        disabled={currentAttraction.currentVisitors === null || currentAttraction.capacity === null || currentAttraction.currentVisitors >= currentAttraction.capacity}
-                        className="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-[#f5f5f7] hover:bg-white text-[#1d1d1f] font-bold transition cursor-pointer"
-                        title="Add 1"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </button>
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <span className="text-xs font-semibold text-[#1d1d1f] block">Manual Headcount</span>
+                        <span className="text-[11px] text-[#86868b]">Unticketed infants / staff escorts</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => manualAdjustCount(-1)}
+                          disabled={currentAttraction.currentVisitors === null || currentAttraction.currentVisitors <= 0}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-[#f5f5f7] hover:bg-white text-[#1d1d1f] font-bold disabled:opacity-40 transition cursor-pointer"
+                          title="Subtract 1"
+                        >
+                          -1
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => manualAdjustCount(1)}
+                          disabled={currentAttraction.currentVisitors === null || currentAttraction.capacity === null || currentAttraction.currentVisitors >= currentAttraction.capacity}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-[#f5f5f7] hover:bg-white text-[#1d1d1f] font-bold transition cursor-pointer"
+                          title="Add 1"
+                        >
+                          +1
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <p className="border-t border-black/[0.05] pt-3 text-xs text-[#86868b]">
+                    Headcount updates automatically after verified entry and exit scans.
+                  </p>
+                )}
               </div>
 
               {/* Live Entry/Exit Activity Stream */}
@@ -796,7 +800,7 @@ function StaffDashboardContent() {
       </main>
 
       {/* MODAL: Switch Station / Assigned Attraction */}
-      {stationModalOpen && (
+      {isAdmin && stationModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white rounded-[32px] max-w-lg w-full p-8 shadow-[0_4px_30px_rgba(0,0,0,0.08)] border border-black/[0.06]">
             <div className="flex items-center justify-between pb-4 border-b border-black/[0.05] mb-5">

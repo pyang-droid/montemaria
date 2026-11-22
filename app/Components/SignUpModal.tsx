@@ -3,10 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
-import { auth, db } from "../lib/firebase";
+import { auth } from "../lib/firebase";
 import SignupProfileFields, { readSignupProfile } from "./SignupProfileFields";
-import { getFirebaseErrorCode } from "../lib/firebaseErrors";
+import { getVisitorSignupErrorMessage, saveNewAccountProfile } from "../lib/createAccount";
 
 interface SignUpModalProps {
   isOpen: boolean;
@@ -68,9 +67,7 @@ export default function SignUpModal({
 
       const user = userCredential.user;
 
-      await setDoc(doc(db, "users", user.uid), {
-        email: user.email ?? email,
-        createdAt: new Date().toISOString(),
+      await saveNewAccountProfile(user, {
         role: "visitor",
         ...profile,
       });
@@ -82,31 +79,8 @@ export default function SignUpModal({
         router.push("/dashboard");
       }, 1500);
     } catch (err: unknown) {
-      const errorCode = getFirebaseErrorCode(err);
-      console.error("Firebase SignUp Error:", errorCode);
-
-      switch (errorCode) {
-        case "auth/email-already-in-use":
-          setError(
-            "This email address is already registered."
-          );
-          break;
-
-        case "auth/invalid-email":
-          setError("Please enter a valid email address.");
-          break;
-
-        case "auth/weak-password":
-          setError(
-            "Password should be at least 6 characters long."
-          );
-          break;
-
-        default:
-          setError(
-            "Registration failed. Please try again."
-          );
-      }
+      console.error("Firebase SignUp Error:", err);
+      setError(getVisitorSignupErrorMessage(err));
     } finally {
       setLoading(false);
     }

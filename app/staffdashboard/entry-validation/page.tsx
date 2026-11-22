@@ -39,10 +39,17 @@ function currentDateKey() {
 }
 
 function EntryValidationContent() {
-  const { accountData, assignedAttraction, isAdmin } = useStaffAuth();
+  const {
+    accountData,
+    assignedAttraction,
+    assignedAttractionId,
+    isAdmin,
+  } = useStaffAuth();
   const operations = useStaffOperations(
     assignedAttraction ?? "",
-    accountData?.fullName ?? ""
+    accountData?.fullName ?? "",
+    isAdmin,
+    assignedAttractionId
   );
   const [bookingState, setBookingState] = useState<{
     attractionId: string;

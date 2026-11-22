@@ -2,9 +2,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  createUserWithEmailAndPassword,
+  inMemoryPersistence,
+  setPersistence,
+  signOut,
+} from "firebase/auth";
 import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import AdminNav from "../AdminNav";
-import { db } from "../../lib/firebase";
+import { AccountProfileError, saveNewAccountProfile } from "../../lib/createAccount";
+import { db, staffAccountAuth } from "../../lib/firebase";
+import { getFirebaseErrorCode } from "../../lib/firebaseErrors";
 import { useLiveCollection } from "../../lib/firestore";
 import type { UserRecord } from "../../lib/models";
 import {
@@ -21,6 +29,7 @@ import {
   UserCog,
   AlertTriangle,
   CheckCircle2,
+  Plus,
 } from "lucide-react";
 
 type UserRole = "Visitor" | "Staff" | "Tourism";
@@ -118,6 +127,16 @@ export default function AccountsPage() {
     useState<UserAccount | null>(null);
   const [actionError, setActionError] = useState("");
   const [updating, setUpdating] = useState(false);
+  const [createStaffOpen, setCreateStaffOpen] = useState(false);
+  const [creatingStaff, setCreatingStaff] = useState(false);
+  const [createStaffError, setCreateStaffError] = useState("");
+  const [staffCreatedMessage, setStaffCreatedMessage] = useState("");
+  const [staffForm, setStaffForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+  });
 
   const totalUsers = users.length;
 
@@ -231,6 +250,99 @@ export default function AccountsPage() {
     }
   }
 
+  function closeCreateStaffModal() {
+    if (creatingStaff) return;
+    setCreateStaffOpen(false);
+    setCreateStaffError("");
+    setStaffForm({ firstName: "", lastName: "", email: "", password: "" });
+  }
+
+  async function createStaffAccount(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const firstName = staffForm.firstName.trim();
+    const lastName = staffForm.lastName.trim();
+    const email = staffForm.email.trim();
+    if (!firstName || !lastName) {
+      setCreateStaffError("Enter the staff member's first and last name.");
+      return;
+    }
+
+    setCreatingStaff(true);
+    setCreateStaffError("");
+    setStaffCreatedMessage("");
+
+    let profileCreated = false;
+
+    try {
+      await setPersistence(staffAccountAuth, inMemoryPersistence);
+      const credential = await createUserWithEmailAndPassword(
+        staffAccountAuth,
+        email,
+        staffForm.password
+      );
+      await saveNewAccountProfile(credential.user, { role: "staff", firstName, lastName });
+      profileCreated = true;
+
+      setStaffCreatedMessage(
+        "Staff account created. Assign an attraction in Staff Assignments before station-specific work."
+      );
+      setCreateStaffOpen(false);
+      setStaffForm({ firstName: "", lastName: "", email: "", password: "" });
+    } catch (creationError) {
+      console.error("Unable to create staff account:", creationError);
+      const errorCode = getFirebaseErrorCode(creationError);
+      if (creationError instanceof AccountProfileError) {
+        if (!creationError.loginRemoved) {
+          setCreateStaffError(
+            "The staff login exists, but the Firestore profile could not be saved. Check Authentication and Firestore for this account before retrying."
+          );
+        } else if (getFirebaseErrorCode(creationError.writeError) === "permission-denied") {
+          setCreateStaffError(
+            `Firestore denied the staff profile write in project ${db.app.options.projectId}. Check that the deployed rules allow tourism admins to create staff profiles.`
+          );
+        } else {
+          setCreateStaffError("Could not save the staff profile to Firestore. Please try again.");
+        }
+      } else {
+        switch (errorCode) {
+          case "auth/email-already-in-use":
+            setCreateStaffError("That email already has a Firebase Authentication account.");
+            break;
+          case "auth/invalid-email":
+            setCreateStaffError("Enter a valid email address.");
+            break;
+          case "auth/weak-password":
+            setCreateStaffError("The initial password must be at least 6 characters.");
+            break;
+          case "auth/network-request-failed":
+            setCreateStaffError("Could not connect to Firebase. Check your connection and try again.");
+            break;
+          default:
+            setCreateStaffError("Unable to create the staff login in Firebase Authentication. Please try again.");
+        }
+      }
+    } finally {
+      if (staffAccountAuth.currentUser) {
+        try {
+          await signOut(staffAccountAuth);
+        } catch (signOutError) {
+          console.error("Could not clear the temporary staff creation session:", signOutError);
+          setStaffCreatedMessage(
+            profileCreated
+              ? "Staff account created, but the temporary setup session could not be cleared. Reload the page before creating another account."
+              : ""
+          );
+          if (!profileCreated) {
+            setCreateStaffError((message) =>
+              `${message} Reload the page to clear the temporary Firebase session.`
+            );
+          }
+        }
+      }
+      setCreatingStaff(false);
+    }
+  }
+
   return (
     <>
       <AdminNav />
@@ -271,23 +383,38 @@ export default function AccountsPage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
-                <span className={`h-2.5 w-2.5 rounded-full ${loading ? "animate-pulse bg-amber-400" : error ? "bg-red-500" : "bg-emerald-500"}`} />
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+                  <span className={`h-2.5 w-2.5 rounded-full ${loading ? "animate-pulse bg-amber-400" : error ? "bg-red-500" : "bg-emerald-500"}`} />
 
-                <div>
-                  <p className="text-xs font-bold text-gray-800">
-                    {loading ? "Connecting" : error ? "Unavailable" : "Live Data"}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-400">
-                    Firebase account records
-                  </p>
+                  <div>
+                    <p className="text-xs font-bold text-gray-800">
+                      {loading ? "Connecting" : error ? "Unavailable" : "Live Data"}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      Firebase account records
+                    </p>
+                  </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateStaffError("");
+                    setCreateStaffOpen(true);
+                  }}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#c1122f] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#a90f28]"
+                >
+                  <Plus size={17} />
+                  Create Staff Account
+                </button>
               </div>
             </div>
           </div>
 
           {error && <p role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
           {actionError && <p role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{actionError}</p>}
+          {staffCreatedMessage && <p role="status" className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{staffCreatedMessage}</p>}
 
           {/* SUMMARY CARDS */}
           <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -548,6 +675,121 @@ export default function AccountsPage() {
           </p>
         </div>
       </main>
+
+      {createStaffOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeCreateStaffModal();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-staff-title"
+            className="w-full max-w-[520px] rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#c1122f]">
+                  Tourism Administration
+                </p>
+                <h2
+                  id="create-staff-title"
+                  className="mt-1 text-2xl font-bold text-gray-900"
+                >
+                  Create Staff Account
+                </h2>
+              </div>
+              <button
+                type="button"
+                aria-label="Close create staff account"
+                onClick={closeCreateStaffModal}
+                disabled={creatingStaff}
+                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 disabled:opacity-50"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={createStaffAccount} className="space-y-4 p-6">
+              <p className="text-sm leading-6 text-gray-500">
+                This creates a staff-only login. Give the initial password to the staff member securely, then assign their attraction from Staff Assignments.
+              </p>
+
+              {createStaffError && (
+                <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {createStaffError}
+                </p>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  First name
+                  <input
+                    required
+                    value={staffForm.firstName}
+                    onChange={(event) => setStaffForm((form) => ({ ...form, firstName: event.target.value }))}
+                    className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-[#c1122f]"
+                  />
+                </label>
+                <label className="block text-sm font-medium text-gray-700">
+                  Last name
+                  <input
+                    required
+                    value={staffForm.lastName}
+                    onChange={(event) => setStaffForm((form) => ({ ...form, lastName: event.target.value }))}
+                    className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-[#c1122f]"
+                  />
+                </label>
+              </div>
+
+              <label className="block text-sm font-medium text-gray-700">
+                Email address
+                <input
+                  required
+                  type="email"
+                  autoComplete="email"
+                  value={staffForm.email}
+                  onChange={(event) => setStaffForm((form) => ({ ...form, email: event.target.value }))}
+                  className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-[#c1122f]"
+                />
+              </label>
+
+              <label className="block text-sm font-medium text-gray-700">
+                Initial password
+                <input
+                  required
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={6}
+                  value={staffForm.password}
+                  onChange={(event) => setStaffForm((form) => ({ ...form, password: event.target.value }))}
+                  className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-[#c1122f]"
+                />
+              </label>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeCreateStaffModal}
+                  disabled={creatingStaff}
+                  className="rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingStaff}
+                  className="rounded-xl bg-[#c1122f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#a90f28] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {creatingStaff ? "Creating account…" : "Create Staff Account"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* VIEW DETAILS MODAL */}
       {selectedUser && (

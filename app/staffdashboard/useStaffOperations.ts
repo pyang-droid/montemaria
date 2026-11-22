@@ -15,7 +15,6 @@ import {
   type DocumentData,
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { useLiveCollection } from "../lib/firestore";
 import type { AttractionRecord, BookingRecord, VisitorLogRecord } from "../lib/models";
 
 export type AttractionStatus =
@@ -172,14 +171,84 @@ function toLog(record: VisitorLogRecord): VisitorEntryExitLog {
 
 export function useStaffOperations(
   assignedAttractionName = "",
-  staffName = ""
+  staffName = "",
+  isAdmin = false,
+  assignedAttractionId = ""
 ) {
-  const { records: attractionRecords, loading: attractionsLoading, error: attractionsError } =
-    useLiveCollection<AttractionRecord>("attractions");
+  const [attractionState, setAttractionState] = useState<{
+    sourceKey: string;
+    records: AttractionInfo[];
+    loading: boolean;
+    error: string | null;
+  }>({ sourceKey: "", records: [], loading: true, error: null });
+  const sourceKey = isAdmin ? "admin" : assignedAttractionId;
+
+  useEffect(() => {
+    if (isAdmin) {
+      return onSnapshot(
+        collection(db, "attractions"),
+        (snapshot) => {
+          setAttractionState({
+            sourceKey: "admin",
+            records: snapshot.docs.map((item) =>
+              toAttraction({ ...item.data(), id: item.id } as AttractionRecord)
+            ),
+            loading: false,
+            error: null,
+          });
+        },
+        (error) => {
+          console.error("Unable to subscribe to attractions:", error);
+          setAttractionState({
+            sourceKey: "admin",
+            records: [],
+            loading: false,
+            error: "Unable to load attraction records. Check your access and try again.",
+          });
+        }
+      );
+    }
+
+    if (!assignedAttractionId) return;
+
+    return onSnapshot(
+      doc(db, "attractions", assignedAttractionId),
+      (snapshot) => {
+        setAttractionState({
+          sourceKey: assignedAttractionId,
+          records: snapshot.exists()
+            ? [
+                toAttraction({
+                  ...snapshot.data(),
+                  id: snapshot.id,
+                } as AttractionRecord),
+              ]
+            : [],
+          loading: false,
+          error: null,
+        });
+      },
+      (error) => {
+        console.error("Unable to subscribe to the assigned attraction:", error);
+        setAttractionState({
+          sourceKey: assignedAttractionId,
+          records: [],
+          loading: false,
+          error: "Unable to load the assigned attraction. Check your access and try again.",
+        });
+      }
+    );
+  }, [assignedAttractionId, isAdmin]);
+
+  const attractionStateIsCurrent =
+    sourceKey !== "" && attractionState.sourceKey === sourceKey;
   const attractions = useMemo(
-    () => attractionRecords.map(toAttraction),
-    [attractionRecords]
+    () => (attractionStateIsCurrent ? attractionState.records : []),
+    [attractionState.records, attractionStateIsCurrent]
   );
+  const attractionsLoading =
+    sourceKey !== "" && (!attractionStateIsCurrent || attractionState.loading);
+  const attractionsError = attractionStateIsCurrent ? attractionState.error : null;
   const [overrideStation, setOverrideStation] = useState<string | null>(null);
   const [scanMode, setScanMode] = useState<ScanMode>("ENTRY");
   const [lastVerification, setLastVerification] =
@@ -191,13 +260,15 @@ export function useStaffOperations(
     error: string | null;
   }>({ attractionId: "", records: [], loading: true, error: null });
 
-  const activeAttractionName =
-    overrideStation ??
-    (assignedAttractionName === "All Attractions (Supervisor)"
-      ? attractions[0]?.name ?? ""
-      : assignedAttractionName);
-  const currentAttraction =
-    attractions.find((attraction) => attraction.name === activeAttractionName) ?? null;
+  const activeAttractionName = isAdmin
+    ? overrideStation ??
+      (assignedAttractionName === "All Attractions (Supervisor)"
+        ? attractions[0]?.name ?? ""
+        : assignedAttractionName)
+    : assignedAttractionName;
+  const currentAttraction = isAdmin
+    ? attractions.find((attraction) => attraction.name === activeAttractionName) ?? null
+    : attractions.find((attraction) => attraction.id === assignedAttractionId) ?? null;
 
   const currentAttractionId = currentAttraction?.id;
 
@@ -246,7 +317,7 @@ export function useStaffOperations(
 
   const setIsQueuePaused = useCallback(
     (paused: boolean) => {
-      if (!currentAttraction) return;
+      if (!isAdmin || !currentAttraction) return;
       void updateDoc(doc(db, "attractions", currentAttraction.id), {
         queuePaused: paused,
         updatedAt: serverTimestamp(),
@@ -261,7 +332,7 @@ export function useStaffOperations(
         });
       });
     },
-    [currentAttraction, scanMode]
+    [currentAttraction, isAdmin, scanMode]
   );
 
   const isQueuePaused = currentAttraction?.queuePaused ?? false;
@@ -468,10 +539,13 @@ export function useStaffOperations(
           transaction.update(bookingRef, {
             visitStatus: isEntry ? "inside" : "exited",
             updatedAt: serverTimestamp(),
+            lastOccupancyEventId: logRef.id,
           });
           transaction.update(attractionRef, {
             currentVisitors: currentVisitors + (isEntry ? pax : -pax),
             updatedAt: serverTimestamp(),
+            lastOccupancyLogId: logRef.id,
+            lastOccupancyBookingId: ticket.bookingRef,
           });
           transaction.set(logRef, {
             bookingId: ticket.bookingRef,

@@ -25,8 +25,13 @@ if (missingConfig.length > 0) {
 }
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const staffAccountAppName = "staff-account-creator";
+const staffAccountApp =
+  getApps().find((firebaseApp) => firebaseApp.name === staffAccountAppName) ??
+  initializeApp(firebaseConfig, staffAccountAppName);
 
 export const auth = getAuth(app);
+export const staffAccountAuth = getAuth(staffAccountApp);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export { app };

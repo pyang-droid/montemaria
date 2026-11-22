@@ -19,7 +19,12 @@ import {
 } from "lucide-react";
 
 function QRCodeContent() {
-  const { accountData, assignedAttraction } = useStaffAuth();
+  const {
+    accountData,
+    assignedAttraction,
+    assignedAttractionId,
+    isAdmin,
+  } = useStaffAuth();
   const staffName = accountData?.fullName || "Staff Officer";
 
   const {
@@ -33,7 +38,7 @@ function QRCodeContent() {
     setLastVerification,
     verifyAndProcessCode,
     confirmAdmission,
-  } = useStaffOperations(assignedAttraction, staffName);
+  } = useStaffOperations(assignedAttraction, staffName, isAdmin, assignedAttractionId);
 
   const [inputCode, setInputCode] = useState("");
   const [filterType, setFilterType] = useState<"ALL" | "ENTRY" | "EXIT" | "DENIED">("ALL");

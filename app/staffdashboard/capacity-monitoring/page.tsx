@@ -11,13 +11,13 @@ import {
 } from "lucide-react";
 
 function CapacityMonitoringContent() {
-  const { assignedAttraction } = useStaffAuth();
+  const { assignedAttraction, assignedAttractionId, isAdmin } = useStaffAuth();
   const {
     attractions,
     attractionsLoading,
     attractionsError,
     manualAdjustCount,
-  } = useStaffOperations(assignedAttraction);
+  } = useStaffOperations(assignedAttraction, "", isAdmin, assignedAttractionId);
 
   const occupancyAvailable = attractions.length > 0 && attractions.every(
     (attraction) =>
@@ -90,7 +90,7 @@ function CapacityMonitoringContent() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-bold uppercase text-[#86868b] tracking-[0.14em]">
-                    Total Sanctuary Load
+                    {isAdmin ? "Total Sanctuary Load" : "Assigned Post Load"}
                   </span>
                   <span className="text-xs font-mono font-bold text-[#1d1d1f]">
                     {overallPercentage === null ? "—" : `${overallPercentage}% Total Capacity`}
@@ -122,25 +122,37 @@ function CapacityMonitoringContent() {
             <div className="rounded-[28px] border border-black/[0.06] bg-white p-7 shadow-[0_1px_12px_rgba(0,0,0,0.04)] flex flex-col justify-between">
               <div>
                 <p className="text-[10px] font-bold text-[#86868b] uppercase tracking-[0.14em] mb-1">
-                  Available Zones
+                  {isAdmin ? "Available Zones" : "Assigned Post Status"}
                 </p>
                 <p className="text-3xl font-bold text-emerald-800 font-serif mt-1">
-                  {attractionsLoading ? "—" : attractions.filter((a) => a.status === "Available").length}
+                  {attractionsLoading
+                    ? "—"
+                    : isAdmin
+                      ? attractions.filter((a) => a.status === "Available").length
+                      : attractions[0]?.status ?? "—"}
                 </p>
               </div>
-              <p className="text-xs text-[#86868b] mt-3">Normal visitor flow</p>
+              <p className="text-xs text-[#86868b] mt-3">
+                {isAdmin ? "Normal visitor flow" : "Your assigned attraction"}
+              </p>
             </div>
 
             <div className="rounded-[28px] border border-black/[0.06] bg-white p-7 shadow-[0_1px_12px_rgba(0,0,0,0.04)] flex flex-col justify-between">
               <div>
                 <p className="text-[10px] font-bold text-[#86868b] uppercase tracking-[0.14em] mb-1">
-                  High Occupancy Zones
+                  {isAdmin ? "High Occupancy Zones" : "Occupancy"}
                 </p>
                 <p className="text-3xl font-bold text-amber-700 font-serif mt-1">
-                  {attractionsLoading ? "—" : attractions.filter((a) => a.status === "Near Capacity" || a.status === "Full").length}
+                  {attractionsLoading
+                    ? "—"
+                    : isAdmin
+                      ? attractions.filter((a) => a.status === "Near Capacity" || a.status === "Full").length
+                      : attractions[0]?.currentVisitors ?? "—"}
                 </p>
               </div>
-              <p className="text-xs text-[#86868b] mt-3">Queue regulation required</p>
+              <p className="text-xs text-[#86868b] mt-3">
+                {isAdmin ? "Queue regulation required" : "Current visitors"}
+              </p>
             </div>
           </div>
 
@@ -159,7 +171,8 @@ function CapacityMonitoringContent() {
                 attraction.capacity > 0
                   ? (attraction.currentVisitors / attraction.capacity) * 100
                   : null;
-              const isAssigned = attraction.name === assignedAttraction;
+              const isAssigned =
+                !isAdmin && attraction.id === assignedAttractionId;
 
               return (
                 <div
@@ -223,8 +236,8 @@ function CapacityMonitoringContent() {
                       </div>
                     </div>
 
-                    {/* Headcount adjustment buttons */}
-                    <div className="flex items-center justify-between text-xs mb-5">
+                    {isAdmin && (
+                      <div className="flex items-center justify-between text-xs mb-5">
                       <span className="text-[#86868b] font-medium">Headcount:</span>
                       <div className="flex items-center gap-1.5">
                         <button
@@ -252,7 +265,8 @@ function CapacityMonitoringContent() {
                           +5
                         </button>
                       </div>
-                    </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Status reflects current capacity data and is not manually simulated. */}

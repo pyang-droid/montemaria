@@ -4,10 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from "../lib/firebase"; // Import Firestore database instance
-import { doc, setDoc } from "firebase/firestore";
+import { auth } from "../lib/firebase";
 import SignupProfileFields, { readSignupProfile } from "../Components/SignupProfileFields";
-import { getFirebaseErrorCode } from "../lib/firebaseErrors";
+import { getVisitorSignupErrorMessage, saveNewAccountProfile } from "../lib/createAccount";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -54,9 +53,7 @@ export default function SignUpPage() {
       const user = userCredential.user;
 
       // Public sign-up must never grant a privileged role.
-      await setDoc(doc(db, "users", user.uid), {
-        email: user.email ?? email,
-        createdAt: new Date().toISOString(),
+      await saveNewAccountProfile(user, {
         role: "visitor",
         ...profile,
       });
@@ -68,22 +65,8 @@ export default function SignUpPage() {
       }, 2000);
 
     } catch (err: unknown) {
-      const errorCode = getFirebaseErrorCode(err);
-      console.error("Firebase SignUp Error:", errorCode);
-
-      switch (errorCode) {
-        case "auth/email-already-in-use":
-          setError("This email address is already registered to an account.");
-          break;
-        case "auth/invalid-email":
-          setError("Please enter a valid email format.");
-          break;
-        case "auth/weak-password":
-          setError("Password should be at least 6 characters long.");
-          break;
-        default:
-          setError("Registration failed. Please try again or check your connection.");
-      }
+      console.error("Firebase SignUp Error:", err);
+      setError(getVisitorSignupErrorMessage(err));
     } finally {
       setLoading(false);
     }

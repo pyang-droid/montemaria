@@ -34,6 +34,7 @@ interface StaffAuthContextType {
   isAdmin: boolean;
   isLoading: boolean;
   assignedAttraction: string;
+  assignedAttractionId: string;
   setAssignedAttraction: (attraction: string) => void;
   logout: () => Promise<void>;
   switchAccount: () => void;
@@ -47,6 +48,7 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<StaffRole>("Unknown");
   const [accountData, setAccountData] = useState<StaffAccountData | null>(null);
   const [assignedAttraction, setAssignedAttraction] = useState<string>("");
+  const [assignedAttractionId, setAssignedAttractionId] = useState("");
   const [authError, setAuthError] = useState("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -56,6 +58,8 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setRole("Unknown");
         setAccountData(null);
+        setAssignedAttraction("");
+        setAssignedAttractionId("");
         setIsLoading(false);
         return;
       }
@@ -78,6 +82,7 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
           setRole("Unknown");
           setAccountData(null);
           setAssignedAttraction("");
+          setAssignedAttractionId("");
           setAuthError("Your account profile is missing from Firestore.");
           setIsLoading(false);
           return;
@@ -92,6 +97,10 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
             : assignment?.active === true
               ? String(assignment.attractionName ?? "")
               : "";
+        const assignmentId =
+          detectedRole === "Staff" && assignment?.active === true
+            ? String(assignment.attractionId ?? "")
+            : "";
         const name = [profile.firstName, profile.lastName]
           .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
           .join(" ");
@@ -109,12 +118,14 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
         setRole(detectedRole);
         setAccountData(staffAccount);
         setAssignedAttraction(assignmentName);
+        setAssignedAttractionId(assignmentId);
         setAuthError("");
       } catch (err) {
         console.error("Could not load the staff account from Firestore:", err);
         setRole("Unknown");
         setAccountData(null);
         setAssignedAttraction("");
+        setAssignedAttractionId("");
         setAuthError("Unable to load your staff account. Check your connection and permissions.");
       } finally {
         setIsLoading(false);
@@ -243,6 +254,7 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
         isAdmin,
         isLoading,
         assignedAttraction,
+        assignedAttractionId,
         setAssignedAttraction,
         logout,
         switchAccount,
