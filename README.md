@@ -1,6 +1,6 @@
 # Montemaria
 
-Montemaria is a Next.js application using Firebase Authentication, Cloud Firestore, and Firebase Storage. The client connects to the existing Firebase project (`monte-maria`) using the public web-app configuration; no Firebase Admin credentials belong in the browser.
+Montemaria is a Next.js application using Firebase Authentication, Cloud Firestore, and Firebase Storage. The production Vercel site uses the `monte-maria-3a9e7` Firebase project. The local web-app configuration may point to `monte-maria`, which has its own data and accounts. Keep Firebase Admin credentials out of the browser.
 
 ## Local development
 
@@ -41,10 +41,10 @@ Provision staff and tourism administrator roles and assignment documents using a
 
 ## Security rules and indexes
 
-Review the rules and schema against the existing project before deployment. From an authenticated Firebase CLI session, deploy rules and indexes to the existing project:
+Review the rules and schema against the target project before deployment. From an authenticated Firebase CLI session, deploy production rules and indexes to the project used by Vercel:
 
 ```bash
-firebase deploy --only firestore:rules,firestore:indexes,storage --project monte-maria
+firebase deploy --only firestore:rules,firestore:indexes,storage --project monte-maria-3a9e7
 ```
 
 The rules restrict profile access, staff operations to assigned attractions, and payment confirmation to authorized administrators. The included composite indexes support booking activity, ticket verification, and the admission desk. Do not deploy permissive rules to make the UI appear populated.

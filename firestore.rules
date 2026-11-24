@@ -67,8 +67,7 @@ service cloud.firestore {
           'lastOccupancyBookingId'
         ])
         && request.resource.data.diff(resource.data).affectedKeys().hasAll([
-          'currentVisitors', 'updatedAt', 'lastOccupancyLogId',
-          'lastOccupancyBookingId'
+          'currentVisitors', 'updatedAt', 'lastOccupancyLogId'
         ])
         && eventId is string
         && eventId != resource.data.get('lastOccupancyLogId', '')
@@ -120,7 +119,7 @@ service cloud.firestore {
         && request.resource.data.lastOccupancyLogId == eventId
         && request.resource.data.lastOccupancyBookingId == bookingId
         && (event.eventType != 'ENTRY'
-          || (resource.data.queuePaused != true
+          || (resource.data.get('queuePaused', false) != true
             && resource.data.status != 'Closed'))
         && validOccupancyTransition(
           event.eventType,
@@ -182,14 +181,13 @@ service cloud.firestore {
           'lastOccupancyBookingId'
         ])
         && attractionAfter.diff(attractionBefore).affectedKeys().hasAll([
-          'currentVisitors', 'updatedAt', 'lastOccupancyLogId',
-          'lastOccupancyBookingId'
+          'currentVisitors', 'updatedAt', 'lastOccupancyLogId'
         ])
         && attractionAfter.lastOccupancyLogId == eventId
         && attractionAfter.lastOccupancyBookingId == bookingId
         && attractionAfter.updatedAt == request.time
         && (event.eventType != 'ENTRY'
-          || (attractionBefore.queuePaused != true
+          || (attractionBefore.get('queuePaused', false) != true
             && attractionBefore.status != 'Closed'))
         && validOccupancyTransition(
           event.eventType,
@@ -251,7 +249,7 @@ service cloud.firestore {
         && attractionAfter.lastOccupancyBookingId == bookingId
         && attractionAfter.updatedAt == request.time
         && (request.resource.data.eventType != 'ENTRY'
-          || (attractionBefore.queuePaused != true
+          || (attractionBefore.get('queuePaused', false) != true
             && attractionBefore.status != 'Closed'))
         && validOccupancyTransition(
           request.resource.data.eventType,
