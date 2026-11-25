@@ -9,6 +9,7 @@ import { auth } from "../lib/firebase";
 import {
   LayoutDashboard,
   CreditCard,
+  BarChart3,
   UserRoundCog,
   MapPin,
   Activity,
@@ -32,6 +33,12 @@ const navLinks = [
     href: "/tourismdashboard/bookings",
     icon: CreditCard,
     description: "Booking and payment records",
+  },
+  {
+    label: "Reports",
+    href: "/tourismdashboard/reports",
+    icon: BarChart3,
+    description: "Income and attraction popularity",
   },
   {
     label: "Staff Assignments",
