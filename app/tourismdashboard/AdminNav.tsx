@@ -127,7 +127,7 @@ export default function AdminNav() {
 
           <div>
             <p
-              className="text-xl font-bold text-[#344054]"
+              className="text-xl font-bold text-black"
               style={{
                 fontFamily: "var(--font-montemaria-sans)",
               }}
@@ -135,7 +135,7 @@ export default function AdminNav() {
               Montemaria
             </p>
 
-            <p className="text-[10px] uppercase tracking-[0.16em] text-gray-400">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-black">
               Tourism Office
             </p>
           </div>
@@ -190,7 +190,7 @@ export default function AdminNav() {
 
             <div className="min-w-0">
               <p
-                className="text-xl font-bold text-[#344054]"
+                className="text-xl font-bold text-black"
                 style={{
                   fontFamily: "var(--font-montemaria-sans)",
                 }}
@@ -199,7 +199,7 @@ export default function AdminNav() {
               </p>
 
               <p
-                className="mt-1 text-[10px] font-medium uppercase tracking-[0.15em] text-gray-400"
+                className="mt-1 text-[10px] font-medium uppercase tracking-[0.15em] text-black"
                 style={{
                   fontFamily: "var(--font-montemaria-sans)",
                 }}
@@ -212,7 +212,7 @@ export default function AdminNav() {
 
         {/* NAVIGATION */}
         <div className="flex-1 overflow-y-auto px-4 py-6">
-          <p className="mb-4 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">
+          <p className="mb-4 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-black">
             Administration
           </p>
 
@@ -230,7 +230,7 @@ export default function AdminNav() {
                   className={`group flex items-center gap-3 rounded-xl px-3 py-3 transition-all ${
                     active
                       ? "bg-[#c1122f]/10 text-[#c1122f]"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      : "hover:bg-gray-50"
                   }`}
                 >
                   <span
@@ -243,18 +243,12 @@ export default function AdminNav() {
                     <Icon size={19} />
                   </span>
 
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 text-black">
                     <p className="text-[13px] font-bold">
                       {link.label}
                     </p>
 
-                    <p
-                      className={`mt-0.5 text-[10px] ${
-                        active
-                          ? "text-[#c1122f]/70"
-                          : "text-gray-400"
-                      }`}
-                    >
+                    <p className="mt-0.5 text-xs">
                       {link.description}
                     </p>
                   </div>
@@ -271,11 +265,11 @@ export default function AdminNav() {
         {/* ADMIN ACCOUNT + LOGOUT */}
         <div className="border-t border-gray-100 px-5 py-5">
           <div className="mb-4 rounded-xl bg-gray-50 px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">
+            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black">
               Admin Panel
             </p>
 
-            <p className="mt-1 text-sm font-semibold text-gray-800">
+            <p className="mt-1 text-sm font-semibold text-black">
               Tourism Administrator
             </p>
           </div>
@@ -284,7 +278,7 @@ export default function AdminNav() {
             type="button"
             onClick={handleLogout}
             disabled={loggingOut}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-[#c1122f] disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-black transition hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <LogOut size={17} />
             {loggingOut ? "Logging out..." : "Logout"}
